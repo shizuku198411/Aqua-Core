@@ -15,6 +15,20 @@ struct process *init_proc;
 
 static bool need_resched;
 
+static void set_process_name(struct process *proc, const char *name) {
+    for (int i = 0; i < PROC_NAME_MAX; i++) {
+        proc->name[i] = '\0';
+    }
+
+    if (!name) {
+        return;
+    }
+
+    for (int i = 0; i < PROC_NAME_MAX - 1 && name[i] != '\0'; i++) {
+        proc->name[i] = name[i];
+    }
+}
+
 
 static struct process *find_process_by_pid(int pid) {
     if (pid <= 0) {
@@ -84,6 +98,7 @@ static void recycle_process_slot(struct process *proc) {
 
     free_process_memory(proc);
     proc->state = PROC_UNUSED;
+    set_process_name(proc, NULL);
     proc->wait_reason = PROC_WAIT_NONE;
     proc->wait_pid = -1;
     proc->parent_pid = 0;
@@ -166,7 +181,7 @@ void switch_context(uint32_t *prev_sp, uint32_t *next_sp) {
 }
 
 
-struct process *create_process(const void *image, size_t image_size) {
+struct process *create_process(const void *image, size_t image_size, const char *name) {
     struct process *proc = NULL;
     int i;
 
@@ -177,9 +192,9 @@ struct process *create_process(const void *image, size_t image_size) {
             break;
         }
     }
-
+    // no free slot
     if (!proc) {
-        PANIC("No free process slots");
+        return NULL;
     }
 
     uint32_t *sp = (uint32_t *) &proc->stack[sizeof(proc->stack)];
@@ -220,8 +235,9 @@ struct process *create_process(const void *image, size_t image_size) {
                  PAGE_U | PAGE_R | PAGE_W | PAGE_X);
     }
 
-    proc->pid = i + 1;
+    proc->pid = i;
     proc->state = PROC_RUNNABLE;
+    set_process_name(proc, name);
     proc->wait_reason = PROC_WAIT_NONE;
     proc->wait_pid = -1;
     proc->parent_pid = 0;
@@ -449,4 +465,38 @@ int process_ipc_recv(int self_pid, int *from_pid, uint32_t *message) {
     self->ipc_from_pid = 0;
     self->ipc_message = 0;
     return 0;
+}
+
+int process_kill(int target_pid) {
+    if (target_pid <= 0) {
+        return -1;
+    }
+
+    struct process *target = find_process_by_pid(target_pid);
+    if (!target || target->state == PROC_EXITED) {
+        return -2;
+    }
+
+    if (target == init_proc) {
+        return -3;
+    }
+
+    int killed_pid = target->pid;
+    orphan_children(target->pid);
+    target->state = PROC_EXITED;
+    target->wait_reason = PROC_WAIT_NONE;
+    target->wait_pid = -1;
+    notify_child_exit(target);
+
+    if (target == current_proc) {
+        // Self-kill cannot free current stack/context immediately.
+        target->parent_pid = 0;
+        yield();
+        PANIC("killed process resumed unexpectedly");
+    }
+
+    // kill command semantics: reclaim target slot immediately.
+    target->parent_pid = 0;
+    recycle_process_slot(target);
+    return killed_pid;
 }

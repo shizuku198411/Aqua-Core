@@ -12,6 +12,7 @@
 - [Trap Handler](./trap-handler.md)
 - [Syscall](./syscall.md)
 - [SV32 Paging](./sv32.md)
+- [Process Management](./process-management.md)
 
 ## 1. bitmap allocator
 
@@ -28,7 +29,7 @@ SV32 の VPN 計算や PTE 形式は [SV32 Paging](./sv32.md) を参照してく
 
 ## 2. プロセス生成/終了
 
-`create_process(image, size)`:
+`create_process(image, size, name)`:
 
 1. `reap_exited_processes()`
 2. `PROC_UNUSED` スロット確保
@@ -40,6 +41,8 @@ SV32 の VPN 計算や PTE 形式は [SV32 Paging](./sv32.md) を参照してく
 
 - 親なし: `reap_exited_processes()`
 - 親あり: `waitpid()` が回収
+
+`kill` の詳細挙動（即時回収/自己kill例外）は [Process Management](./process-management.md) を参照してください。
 
 ## 3. タイムスライス付き RR スケジューラ
 

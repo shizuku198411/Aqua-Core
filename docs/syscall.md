@@ -27,9 +27,8 @@ SYSCALL_BITMAP  = 6
 SYSCALL_WAITPID = 7
 SYSCALL_IPC_SEND= 8
 SYSCALL_IPC_RECV= 9
+SYSCALL_KILL   = 10
 ```
-
-`SYSCALL_SPAWN` は `SYSCALL_CLONE` の別名です。
 
 ## ユーザ側 ABI
 
@@ -39,9 +38,10 @@ SYSCALL_IPC_RECV= 9
 提供ラッパ:
 
 - `putchar` / `getchar`
-- `ps(index)`
+- `ps(index, struct ps_info *out)`
 - `clone(app_id)` / `spawn(app_id)`
 - `waitpid(pid)`
+- `kill(pid)`
 - `ipc_send(pid, message)`
 - `ipc_recv(&from_pid)`
 - `bitmap(index)`
@@ -51,19 +51,6 @@ SYSCALL_IPC_RECV= 9
 
 - `syscall_handler.c`: ディスパッチのみ
 - `syscall_console.c`: `putchar`, `getchar`, `poll_console_input`
-- `syscall_process.c`: `exit`, `ps`, `clone`, `waitpid`
+- `syscall_process.c`: `exit`, `ps`, `clone`, `waitpid`, `kill`
 - `syscall_ipc.c`: `ipc_send`, `ipc_recv`
 - `syscall_debug.c`: `bitmap`
-
-## `waitpid` の意味
-
-- 親プロセスは `waitpid` で `PROC_WAIT_CHILD_EXIT` に入りブロック
-- 子が `exit` すると親が起床
-- 回収は `waitpid` 側で実施（親なしプロセスは scheduler 側で回収）
-
-## IPC (`ipc_send` / `ipc_recv`)
-
-- 宛先プロセスごとに単一 mailbox (`ipc_has_message`) を保持
-- `ipc_send` は mailbox が空なら配達、満杯なら `-2`
-- `ipc_recv` はメッセージ到着まで `PROC_WAIT_IPC_RECV` で待機
-- `ipc_recv` の `from_pid` 書き戻しは `sstatus.SUM` を一時有効化して実施

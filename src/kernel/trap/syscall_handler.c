@@ -41,6 +41,10 @@ void handle_syscall(struct trap_frame *f) {
             syscall_handle_bitmap(f);
             break;
 
+        case SYSCALL_KILL:
+            syscall_handle_kill(f);
+            break;
+
         default:
             PANIC("undefined system call");
     }

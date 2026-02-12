@@ -58,7 +58,7 @@ static void discard_line_tail(void) {
 void main(void) {
     while (1) {
 prompt:
-        printf("aqua-core:$ ");
+        printf("\033[34mqua-core\033[0m:$ ");
         char cmdline[64];
         int len = 0;
         for (;;) {
@@ -109,6 +109,36 @@ prompt:
             }
         }
 
+        // kill
+        else if (strcmp(argv[0], "kill") == 0) {
+            if (argc != 2) {
+                printf("target pid is required. kill <pid>\n");
+            } else {
+                int target_pid = 0;
+                parse_int(argv[1], &target_pid);
+                int ret = kill(target_pid);
+                if (ret < 0) {
+                    printf("pid: %d kill failed. ", target_pid);
+                    switch(-1 * ret) {
+                        case 1:
+                            printf("invalid pid specified\n");
+                            break;
+                        case 2:
+                            printf("process not exist\n");
+                            break;
+                        case 3:
+                            printf("cannot kill init process\n");
+                            break;
+                        default:
+                            printf("unknown error\n");
+                            break;
+                    }
+                } else {
+                    printf("pid: %d killed\n", target_pid);
+                }
+            }
+        }
+
         // ipc_start
         else if (strcmp(argv[0], "ipc_start") == 0 && argc == 1) {
             int pid = spawn(APP_ID_IPC_RX);
@@ -147,7 +177,6 @@ prompt:
             }
         }
 
-
         // bitmap
         else if (strcmp(argv[0], "bitmap") == 0 && argc == 1) {
             int total = 0;
@@ -164,7 +193,7 @@ prompt:
         }
 
         // exit
-        else if (strcmp(argv[0], "exit") == 0 && argc == 1) {
+        else if (strcmp(argv[0], "shutdown") == 0 && argc == 1) {
             exit();
         }
 

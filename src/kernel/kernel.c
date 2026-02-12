@@ -173,13 +173,14 @@ void kernel_main(void) {
     banner();
 
     // idle process
-    idle_proc = create_process(NULL, 0);
+    idle_proc = create_process(NULL, 0, "idle");
     idle_proc->pid = 0;
     current_proc = idle_proc;
 
     // start shell (init)
     init_proc = create_process(_binary___bin_shell_bin_start,
-                               (size_t) _binary___bin_shell_bin_size);
+                               (size_t) _binary___bin_shell_bin_size,
+                               "shell");
     yield();
 
     __builtin_unreachable();

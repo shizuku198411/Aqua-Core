@@ -3,7 +3,8 @@
 #include "stdtypes.h"
 
 
-#define PROCS_MAX   64
+#define PROCS_MAX     16
+#define PROC_NAME_MAX 16
 
 // status
 #define PROC_UNUSED     0
@@ -23,6 +24,7 @@
 struct process {
     int         pid;                // process id
     int         state;              // process status
+    char        name[PROC_NAME_MAX];// process name
     int         wait_reason;        // why this process is waiting
     int         wait_pid;           // target child pid for waitpid (-1:any)
     int         parent_pid;         // parent pid (0: no parent)
@@ -38,6 +40,14 @@ struct process {
     uint8_t     stack[8192];        // kernel stack
 };
 
+struct ps_info {
+    int  pid;
+    int  parent_pid;
+    int  state;
+    int  wait_reason;
+    char name[PROC_NAME_MAX];
+};
+
 
 extern struct process procs[PROCS_MAX];
 extern struct process *current_proc;
@@ -45,7 +55,7 @@ extern struct process *idle_proc;
 extern struct process *init_proc;
 
 void switch_context(uint32_t *prev_sp, uint32_t *next_sp);
-struct process *create_process(const void *image, size_t image_size);
+struct process *create_process(const void *image, size_t image_size, const char *name);
 void wakeup_input_waiters(void);
 void notify_child_exit(struct process *child);
 void orphan_children(int parent_pid);
@@ -54,4 +64,5 @@ void scheduler_on_timer_tick(void);
 bool scheduler_should_yield(void);
 int process_ipc_send(int src_pid, int dst_pid, uint32_t message);
 int process_ipc_recv(int self_pid, int *from_pid, uint32_t *message);
+int process_kill(int target_pid);
 void yield(void);

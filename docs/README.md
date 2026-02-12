@@ -14,5 +14,7 @@
   - syscall ABI、ディスパッチ、`waitpid`/`ipc_send`/`ipc_recv`
 - [Memory / Process](./memory-process.md)
   - bitmap allocator、プロセス生成/解放、タイムスライス付き RR、IPC mailbox
+- [Process Management](./process-management.md)
+  - `struct process`、作成フロー、タイムスライス付きRR、`kill`/`waitpid`/`ps_info`
 - [SV32 Paging](./sv32.md)
   - 2段ページテーブル、アドレス計算、マッピング、QEMU/GDB での VA/PA 追跡

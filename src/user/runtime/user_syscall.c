@@ -1,3 +1,4 @@
+#include "process.h"
 #include "syscall.h"
 
 
@@ -26,8 +27,8 @@ long getchar(void) {
 }
 
 
-int ps(int index) {
-    return syscall(SYSCALL_PS, index, 0, 0);
+int ps(int index, struct ps_info *info) {
+    return syscall(SYSCALL_PS, index, (int) info, 0);
 }
 
 
@@ -55,6 +56,9 @@ int bitmap(int index) {
     return syscall(SYSCALL_BITMAP, index, 0, 0);
 }
 
+int kill(int pid) {
+    return syscall(SYSCALL_KILL, pid, 0, 0);
+}
 
 __attribute__((noreturn))
 void exit(void) {

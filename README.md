@@ -17,7 +17,7 @@ QEMU + OpenSBI 環境での動作を前提に実装しています。
   - U-mode `ecall` 処理
   - timer 割り込みでの再スケジュール判定
 - Syscall
-  - `putchar`, `getchar`, `exit`, `ps`, `clone/spawn`, `waitpid`, `ipc_send`, `ipc_recv`, `bitmap`
+  - `putchar`, `getchar`, `exit`, `ps`, `clone/spawn`, `waitpid`, `kill`, `ipc_send`, `ipc_recv`, `bitmap`
 - 入力処理
   - コンソール入力リングバッファ
   - `getchar` の待機/起床制御（busy loop回避）
@@ -47,4 +47,5 @@ QEMU + OpenSBI 環境での動作を前提に実装しています。
 - [Mode Transition](./docs/mode-transition.md)
 - [Syscall](./docs/syscall.md)
 - [Memory / Process](./docs/memory-process.md)
+- [Process Management](./docs/process-management.md)
 - [SV32 Paging](./docs/sv32.md)

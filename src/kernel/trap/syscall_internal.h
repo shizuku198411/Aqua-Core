@@ -11,3 +11,4 @@ void syscall_handle_waitpid(struct trap_frame *f);
 void syscall_handle_ipc_send(struct trap_frame *f);
 void syscall_handle_ipc_recv(struct trap_frame *f);
 void syscall_handle_bitmap(struct trap_frame *f);
+void syscall_handle_kill(struct trap_frame *f);
