@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include "version.h"
 #include "timer.h"
 #include "stdtypes.h"
 #include "commonlibs.h"
@@ -18,7 +19,16 @@ __attribute__((naked))
 __attribute__((aligned(4)))
 void kernel_entry(void) {
     __asm__ __volatile__(
+        // Swap sp/sscratch only when trapped from U-mode (SPP=0).
+        // For S-mode traps, keep the current kernel stack pointer.
+        "csrr t0, sstatus\n"
+        "andi t0, t0, 0x100\n"
+        "bnez t0, 1f\n"
         "csrrw sp, sscratch, sp\n"
+        "j 2f\n"
+        "1:\n"
+        "csrw sscratch, sp\n"
+        "2:\n"
 
         "addi sp, sp, -4 * 31\n"
         "sw ra,  4 * 0(sp)\n"
@@ -119,11 +129,13 @@ void kernel_shutdown(void) {
 
 void banner(void) {
     printf("\n\n");
+    printf("\033[34m");
     printf("                /\\     \n");
     printf("               /  \\    \n");
-    printf("              / /\\ \\   \n");
-    printf("              \\_\\/_/   \n\n");
-    printf("    Welcome to AquaCore v0.1.0\n\n");
+    printf("              / \033[0m/\\ \033[34m\\   \n");
+    printf("              \\_\033[0m\\/\033[34m_/   \n\n");
+    printf("\033[0m");
+    printf("    Welcome to \033[34mAquaCore\033[0m %s\n\n", KERNEL_VERSION);
 }
 
 
@@ -140,6 +152,11 @@ void kernel_bootstrap(void) {
     printf("[*] set trapvector to reg:stvec...");
     WRITE_CSR(stvec, (uint32_t) kernel_entry);
     printf("done.\n");
+
+    // Ensure trap-entry stack swap source is valid before first timer interrupt.
+    uint32_t kernel_sp;
+    __asm__ __volatile__("mv %0, sp" : "=r"(kernel_sp));
+    WRITE_CSR(sscratch, kernel_sp);
 
     // enable supervisor timer interrupt
     printf("[*] enable sv timer interrupt...");
@@ -174,6 +191,7 @@ __attribute__((naked))
 void boot(void) {
     __asm__ __volatile__(
         "mv sp, %[stack_top]\n"
+        "csrw sscratch, sp\n"       // init sscratch before interrupt
         "j kernel_main\n"
         :
         : [stack_top] "r" (__stack_top)

@@ -196,7 +196,9 @@ struct process *create_process(const void *image, size_t image_size) {
     *--sp = 0;                          // s1
     *--sp = 0;                          // s0
     *--sp = (uint32_t) user_entry;      // ra
-    *--sp = (1 << 1);                   // sstatus (sie flag)
+    // Keep interrupts disabled while running kernel context after first schedule-in.
+    // user_entry() sets the user-visible sstatus before sret.
+    *--sp = 0;                          // sstatus
 
     uint32_t *page_table = (uint32_t *) alloc_pages(1);
     for (paddr_t paddr = (paddr_t) __kernel_base;
@@ -274,8 +276,8 @@ void yield(void) {
         if (!next) {
             uint32_t sstatus = READ_CSR(sstatus);
 
-            // Trap entry uses sscratch/sp swap, so keep sscratch in sync while idling in S-mode.
-            __asm__ __volatile__("csrw sscratch, sp");
+            // Keep sscratch on a stable trap-entry stack pointer for the current process.
+            WRITE_CSR(sscratch, (uint32_t) &current_proc->stack[sizeof(current_proc->stack)]);
 
             WRITE_CSR(sstatus, sstatus | (1 << 1));
             __asm__ __volatile__("wfi");
@@ -287,6 +289,7 @@ void yield(void) {
             if (current_proc->time_slice == 0) {
                 current_proc->time_slice = SCHED_TIME_SLICE_TICKS;
             }
+            WRITE_CSR(sscratch, (uint32_t) &current_proc->stack[sizeof(current_proc->stack)]);
             need_resched = false;
             return;
         }

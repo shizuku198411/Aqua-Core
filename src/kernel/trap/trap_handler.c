@@ -76,11 +76,17 @@ void handle_trap(struct trap_frame *f) {
             if (scheduler_should_yield()) {
                 yield();
             }
+            if (current_proc && current_proc->pid > 0) {
+                WRITE_CSR(sscratch, (uint32_t) &current_proc->stack[sizeof(current_proc->stack)]);
+            }
             return;
 
         default:
             PANIC("unexpected trap scause=%x, stval=%x, sepc=%x\n", scause, stval, user_pc);
     }
 
+    if (current_proc && current_proc->pid > 0) {
+        WRITE_CSR(sscratch, (uint32_t) &current_proc->stack[sizeof(current_proc->stack)]);
+    }
     WRITE_CSR(sepc, user_pc);
 }

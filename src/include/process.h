@@ -4,11 +4,14 @@
 
 
 #define PROCS_MAX   64
+
+// status
 #define PROC_UNUSED     0
 #define PROC_RUNNABLE   1
 #define PROC_WAITTING   2
 #define PROC_EXITED     3
 
+// wait reason
 #define PROC_WAIT_NONE          0
 #define PROC_WAIT_CONSOLE_INPUT 1
 #define PROC_WAIT_CHILD_EXIT    2
