@@ -1,0 +1,35 @@
+#include "kernel.h"
+#include "syscall.h"
+#include "syscall_internal.h"
+#include "commonlibs.h"
+
+void handle_syscall(struct trap_frame *f) {
+    switch (f->a3) {
+        case SYSCALL_PUTCHAR:
+            syscall_handle_putchar(f);
+            break;
+
+        case SYSCALL_GETCHAR:
+            syscall_handle_getchar(f);
+            break;
+
+        case SYSCALL_EXIT:
+            syscall_handle_exit(f);
+            return;
+
+        case SYSCALL_PS:
+            syscall_handle_ps(f);
+            break;
+
+        case SYSCALL_CLONE:
+            syscall_handle_clone(f);
+            break;
+
+        case SYSCALL_BITMAP:
+            syscall_handle_bitmap(f);
+            break;
+
+        default:
+            PANIC("undefined system call");
+    }
+}
