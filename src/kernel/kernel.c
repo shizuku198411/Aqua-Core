@@ -4,19 +4,20 @@
 #include "commonlibs.h"
 #include "memory.h"
 #include "process.h"
+#include "sbi.h"
 
 
 extern char __bss[], __bss_end[], __stack_top[];
 extern char _binary___bin_shell_bin_start[], _binary___bin_shell_bin_size[];
 extern struct process *current_proc;
 extern struct process *idle_proc;
+extern struct process *init_proc;
 
 
 __attribute__((naked))
 __attribute__((aligned(4)))
 void kernel_entry(void) {
     __asm__ __volatile__(
-        //"csrw sscratch, sp\n"
         "csrrw sp, sscratch, sp\n"
 
         "addi sp, sp, -4 * 31\n"
@@ -107,42 +108,64 @@ void user_entry(void) {
     );
 }
 
-void banner(void) {
-    printf("\n\n");
-    printf("        /\\     \n");
-    printf("       /  \\    \n");
-    printf("      / /\\ \\   \n");
-    printf("      \\/__\\/   \n\n");
-    printf("  AqureCore v0.1.0 \n\n");
+
+__attribute__((noreturn))
+void kernel_shutdown(void) {
+    printf("[*] kernel shutdown requested.\n");
+    sbi_shutdown();
+    __builtin_unreachable();
 }
 
-void kernel_main(void) {
-    // zero clear
+
+void banner(void) {
+    printf("\n\n");
+    printf("                /\\     \n");
+    printf("               /  \\    \n");
+    printf("              / /\\ \\   \n");
+    printf("              \\_\\/_/   \n\n");
+    printf("    Welcome to AquaCore v0.1.0\n\n");
+}
+
+
+void kernel_bootstrap(void) {
+    printf("[*] kernel bootstrap started.\n");
+
+    // init memory
+    printf("[*] initialize memory...");
     memset(__bss, 0, (size_t)__bss_end - (size_t)__bss);
-    memory_init();
+    uint32_t total_pages = memory_init();
+    printf("done. total pages=%d\n", total_pages);
 
     // set trap handler to stvec registry
+    printf("[*] set trapvector to reg:stvec...");
     WRITE_CSR(stvec, (uint32_t) kernel_entry);
+    printf("done.\n");
 
     // enable supervisor timer interrupt
+    printf("[*] enable sv timer interrupt...");
     enable_timer_interrupt();
     timer_set_next();
+    printf("done. timer interval=%dms\n", (TIMER_INTERVAL/10000));
 
+    printf("[*] kernel bootstrap completed.\n");
+}
+
+
+void kernel_main(void) {
+    kernel_bootstrap();
     banner();
 
+    // idle process
     idle_proc = create_process(NULL, 0);
     idle_proc->pid = 0;
     current_proc = idle_proc;
 
-    create_process(_binary___bin_shell_bin_start, (size_t) _binary___bin_shell_bin_size);
-
+    // start shell (init)
+    init_proc = create_process(_binary___bin_shell_bin_start,
+                               (size_t) _binary___bin_shell_bin_size);
     yield();
 
-    PANIC("switched to idle process");
-
-    for (;;) {
-        __asm__ __volatile__("wfi");
-    }
+    __builtin_unreachable();
 }
 
 

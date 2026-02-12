@@ -7,6 +7,12 @@
 - `src/include/memory.h`
 - `src/include/process.h`
 
+関連:
+
+- [Trap Handler](./trap-handler.md)
+- [Syscall](./syscall.md)
+- [SV32 Paging](./sv32.md)
+
 ## 1. bitmap allocator
 
 `memory_init()` で `__free_ram..__free_ram_end` を初期化します。
@@ -14,60 +20,60 @@
 - 1bit = 1page
 - `0 = free`, `1 = used`
 - bitmap 本体は free 領域先頭に配置
-- 残りページを `managed_base..` として管理
+- 残りを `managed_base..` として管理
 
-### alloc/free
+`alloc_pages(n)` は first-fit で連続確保、`free_pages(paddr,n)` は範囲/整列/二重解放チェック付きです。
 
-- `alloc_pages(n)`
-  - first-fit で連続 `n` ページを確保
-  - 確保ページを `memset(..., 0, n * PAGE_SIZE)`
-- `free_pages(paddr, n)`
-  - 範囲/整列/二重解放をチェックして解放
+SV32 の VPN 計算や PTE 形式は [SV32 Paging](./sv32.md) を参照してください。
 
-### debug API
-
-- `bitmap_page_state(index)` -> `0/1` (`-1` は範囲外)
-- `bitmap_page_count()`
-
-## 2. プロセス生成
+## 2. プロセス生成/終了
 
 `create_process(image, size)`:
 
-1. `reap_exited_processes()` で終了プロセスを先に回収
-2. `PROC_UNUSED` スロットを確保
+1. `reap_exited_processes()`
+2. `PROC_UNUSED` スロット確保
 3. 初期カーネルスタック作成 (`ra=user_entry`)
-4. top-level page table 生成
-5. カーネル領域を恒等マップ
-6. ユーザイメージを `USER_BASE` にページマップ
-7. `PROC_RUNNABLE` 化
+4. page table 作成、カーネル恒等マップ
+5. ユーザイメージを `USER_BASE` にマップ
 
-## 3. プロセス終了と回収
+`exit` は `PROC_EXITED` 化のみ行い、回収は以下で行います。
 
-- `syscall_exit` は `current_proc->state = PROC_EXITED` のみ設定し、`yield()`
-- 実際の解放は `reap_exited_processes()` が担当
+- 親なし: `reap_exited_processes()`
+- 親あり: `waitpid()` が回収
 
-`free_process_memory(proc)` で以下を `free_pages()`:
+## 3. タイムスライス付き RR スケジューラ
 
-- user pages
-- 2nd-level page tables
-- top-level page table
+- 各プロセスは `time_slice` を持つ (`SCHED_TIME_SLICE_TICKS`)
+- timer tick ごとに `scheduler_on_timer_tick()` が slice を減算
+- slice 0 で `need_resched=true`
+- trap 側で `scheduler_should_yield()` を見て `yield()`
 
-その後スロットを `PROC_UNUSED` に戻します。
+## 4. context switch 図 (text)
 
-## 4. スケジューリング
+```text
+yield()
+  -> runnable scan (round-robin)
+    -> if none: wfi
+    -> if same proc: slice reload if needed, continue
+    -> if next proc:
+         satp <- next->page_table
+         sscratch <- next kernel stack top
+         switch_context(prev, next)
+           save prev callee-saved regs + sstatus + sp
+           load next callee-saved regs + sstatus + sp
+           ret
+```
 
-`yield()`:
+## 5. 待機理由と wakeup
 
-- 先頭で `reap_exited_processes()`
-- ラウンドロビンで runnable を探索
-- runnable 不在時は `sscratch` を同期して `wfi`
-- 実行先決定後に `satp`/`sscratch` 更新して `switch_context`
+- `PROC_WAIT_CONSOLE_INPUT`: `getchar` 待機
+- `PROC_WAIT_CHILD_EXIT`: `waitpid` 待機
+- `PROC_WAIT_IPC_RECV`: `ipc_recv` 待機
 
-## 5. 入力待機
+入力到着、子終了、IPC着信でそれぞれ対象プロセスのみを `RUNNABLE` に戻します。
 
-`getchar` が入力待ち時に `PROC_WAITTING + PROC_WAIT_CONSOLE_INPUT` へ遷移します。
+## 6. IPC mailbox
 
-- timer 割り込みごとに `poll_console_input()` が入力をバッファ化
-- 入力があれば `wakeup_input_waiters()` が入力待ちプロセスのみ起床
-
-`WAITTING` 全体を起こさないため、他種の待機理由と干渉しにくい構成です。
+- 各プロセスに単一スロット (`ipc_has_message`, `ipc_from_pid`, `ipc_message`)
+- `ipc_send`: 宛先 mailbox が空なら格納、満杯なら `-2`
+- `ipc_recv`: 空なら `PROC_WAIT_IPC_RECV` でブロック、受信後にスロットをクリア

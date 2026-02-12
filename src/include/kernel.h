@@ -90,3 +90,4 @@ struct trap_frame {
 #define SSTATUS_SPIE    (1 << 5)
 
 void user_entry(void);
+__attribute__((noreturn)) void kernel_shutdown(void);

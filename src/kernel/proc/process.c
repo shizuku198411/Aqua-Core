@@ -11,6 +11,24 @@ extern char __kernel_base[], __free_ram_end[];
 struct process procs[PROCS_MAX];
 struct process *current_proc;
 struct process *idle_proc;
+struct process *init_proc;
+
+static bool need_resched;
+
+
+static struct process *find_process_by_pid(int pid) {
+    if (pid <= 0) {
+        return NULL;
+    }
+
+    for (int i = 0; i < PROCS_MAX; i++) {
+        if (procs[i].pid == pid && procs[i].state != PROC_UNUSED) {
+            return &procs[i];
+        }
+    }
+
+    return NULL;
+}
 
 
 static void free_process_memory(struct process *proc) {
@@ -59,14 +77,37 @@ static void free_process_memory(struct process *proc) {
 }
 
 
+static void recycle_process_slot(struct process *proc) {
+    if (!proc) {
+        return;
+    }
+
+    free_process_memory(proc);
+    proc->state = PROC_UNUSED;
+    proc->wait_reason = PROC_WAIT_NONE;
+    proc->wait_pid = -1;
+    proc->parent_pid = 0;
+    proc->pid = 0;
+    proc->sp = 0;
+    proc->time_slice = SCHED_TIME_SLICE_TICKS;
+    proc->run_ticks = 0;
+    proc->schedule_count = 0;
+    proc->ipc_has_message = 0;
+    proc->ipc_from_pid = 0;
+    proc->ipc_message = 0;
+}
+
+
 static void reap_exited_processes(void) {
     for (int i = 0; i < PROCS_MAX; i++) {
-        if (procs[i].state == PROC_EXITED) {
-            free_process_memory(&procs[i]);
-            procs[i].state = PROC_UNUSED;
-            procs[i].wait_reason = PROC_WAIT_NONE;
-            procs[i].pid = 0;
-            procs[i].sp = 0;
+        if (procs[i].state != PROC_EXITED) {
+            continue;
+        }
+
+        // Processes with no parent can be reclaimed immediately.
+        // Parented processes are kept as zombies until waitpid() collects them.
+        if (procs[i].parent_pid == 0) {
+            recycle_process_slot(&procs[i]);
         }
     }
 }
@@ -180,10 +221,40 @@ struct process *create_process(const void *image, size_t image_size) {
     proc->pid = i + 1;
     proc->state = PROC_RUNNABLE;
     proc->wait_reason = PROC_WAIT_NONE;
+    proc->wait_pid = -1;
+    proc->parent_pid = 0;
     proc->user_pages = user_pages;
     proc->sp = (uint32_t) sp;
     proc->page_table = page_table;
+    proc->time_slice = SCHED_TIME_SLICE_TICKS;
+    proc->run_ticks = 0;
+    proc->schedule_count = 0;
+    proc->ipc_has_message = 0;
+    proc->ipc_from_pid = 0;
+    proc->ipc_message = 0;
     return proc;
+}
+
+
+void scheduler_on_timer_tick(void) {
+    if (!current_proc || current_proc->state != PROC_RUNNABLE || current_proc->pid <= 0) {
+        return;
+    }
+
+    current_proc->run_ticks++;
+
+    if (current_proc->time_slice > 0) {
+        current_proc->time_slice--;
+    }
+
+    if (current_proc->time_slice == 0) {
+        need_resched = true;
+    }
+}
+
+
+bool scheduler_should_yield(void) {
+    return need_resched;
 }
 
 
@@ -213,8 +284,16 @@ void yield(void) {
         }
 
         if (next == current_proc) {
+            if (current_proc->time_slice == 0) {
+                current_proc->time_slice = SCHED_TIME_SLICE_TICKS;
+            }
+            need_resched = false;
             return;
         }
+
+        next->time_slice = SCHED_TIME_SLICE_TICKS;
+        next->schedule_count++;
+        need_resched = false;
 
         __asm__ __volatile__(
             "sfence.vma\n"
@@ -242,4 +321,129 @@ void wakeup_input_waiters(void) {
             procs[i].wait_reason = PROC_WAIT_NONE;
         }
     }
+}
+
+
+void notify_child_exit(struct process *child) {
+    if (!child || child->parent_pid <= 0) {
+        return;
+    }
+
+    int parent_pid = child->parent_pid;
+    for (int i = 0; i < PROCS_MAX; i++) {
+        struct process *proc = &procs[i];
+        if (proc->pid != parent_pid || proc->state != PROC_WAITTING) {
+            continue;
+        }
+        if (proc->wait_reason != PROC_WAIT_CHILD_EXIT) {
+            continue;
+        }
+
+        if (proc->wait_pid == -1 || proc->wait_pid == child->pid) {
+            proc->state = PROC_RUNNABLE;
+            proc->wait_reason = PROC_WAIT_NONE;
+            proc->wait_pid = -1;
+        }
+    }
+}
+
+
+void orphan_children(int parent_pid) {
+    if (parent_pid <= 0) {
+        return;
+    }
+
+    for (int i = 0; i < PROCS_MAX; i++) {
+        if (procs[i].parent_pid == parent_pid) {
+            procs[i].parent_pid = 0;
+        }
+    }
+}
+
+
+int wait_for_child_exit(int parent_pid, int target_pid) {
+    if (parent_pid <= 0) {
+        return -1;
+    }
+
+    while (1) {
+        bool has_child = false;
+
+        for (int i = 0; i < PROCS_MAX; i++) {
+            struct process *proc = &procs[i];
+            if (proc->state == PROC_UNUSED || proc->parent_pid != parent_pid) {
+                continue;
+            }
+
+            if (target_pid != -1 && proc->pid != target_pid) {
+                continue;
+            }
+
+            has_child = true;
+            if (proc->state == PROC_EXITED) {
+                int exited_pid = proc->pid;
+                recycle_process_slot(proc);
+                return exited_pid;
+            }
+        }
+
+        if (!has_child) {
+            return -1;
+        }
+
+        current_proc->wait_reason = PROC_WAIT_CHILD_EXIT;
+        current_proc->wait_pid = target_pid;
+        current_proc->state = PROC_WAITTING;
+        yield();
+    }
+}
+
+
+int process_ipc_send(int src_pid, int dst_pid, uint32_t message) {
+    struct process *dst = find_process_by_pid(dst_pid);
+    if (!dst || dst->state == PROC_EXITED) {
+        return -1;
+    }
+
+    if (dst->ipc_has_message) {
+        return -2;
+    }
+
+    dst->ipc_has_message = 1;
+    dst->ipc_from_pid = src_pid;
+    dst->ipc_message = message;
+
+    if (dst->state == PROC_WAITTING && dst->wait_reason == PROC_WAIT_IPC_RECV) {
+        dst->state = PROC_RUNNABLE;
+        dst->wait_reason = PROC_WAIT_NONE;
+    }
+
+    return 0;
+}
+
+
+int process_ipc_recv(int self_pid, int *from_pid, uint32_t *message) {
+    struct process *self = find_process_by_pid(self_pid);
+    if (!self) {
+        return -1;
+    }
+
+    while (!self->ipc_has_message) {
+        self->wait_reason = PROC_WAIT_IPC_RECV;
+        self->wait_pid = -1;
+        self->state = PROC_WAITTING;
+        yield();
+    }
+
+    if (from_pid) {
+        *from_pid = self->ipc_from_pid;
+    }
+    if (message) {
+        *message = self->ipc_message;
+    }
+
+    self->ipc_has_message = 0;
+    self->ipc_from_pid = 0;
+    self->ipc_message = 0;
+    return 0;
 }

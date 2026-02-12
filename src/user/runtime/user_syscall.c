@@ -39,6 +39,18 @@ int spawn(int app_id) {
     return clone(app_id);
 }
 
+int waitpid(int pid) {
+    return syscall(SYSCALL_WAITPID, pid, 0, 0);
+}
+
+int ipc_send(int pid, int message) {
+    return syscall(SYSCALL_IPC_SEND, pid, message, 0);
+}
+
+int ipc_recv(int *from_pid) {
+    return syscall(SYSCALL_IPC_RECV, (int) from_pid, 0, 0);
+}
+
 int bitmap(int index) {
     return syscall(SYSCALL_BITMAP, index, 0, 0);
 }
@@ -47,4 +59,5 @@ int bitmap(int index) {
 __attribute__((noreturn))
 void exit(void) {
     syscall(SYSCALL_EXIT, 0, 0, 0);
+    __builtin_unreachable();
 }

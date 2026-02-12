@@ -59,7 +59,7 @@ void handle_trap(struct trap_frame *f) {
         // instruction page fault
         case SCAUSE_INSTRUCTION_PAGE_FAULT:
             PANIC("Instruction page fault. scause=%x, stval=%x, sepc=%x\n", scause, stval, user_pc);
-            
+
         // load page fault
         case SCAUSE_LOAD_PAGE_FAULT:
             PANIC("Load page fault. scause=%x, stval=%x, sepc=%x\n", scause, stval, user_pc);
@@ -67,18 +67,17 @@ void handle_trap(struct trap_frame *f) {
         // store/ANO page fault
         case SCAUSE_STORE_AMO_PAGE_FAULT:
             PANIC("Store/AMO page fault. scause=%x, stval=%x, sepc=%x\n", scause, stval, user_pc);
-        
+
         // timer interrupt
         case SCAUSE_SUPERVISOR_TIMER:
-            // set next time slice
             timer_set_next();
             poll_console_input();
-            // call scheduler
-            if (current_proc && current_proc->state == PROC_RUNNABLE) {
+            scheduler_on_timer_tick();
+            if (scheduler_should_yield()) {
                 yield();
             }
             return;
-        
+
         default:
             PANIC("unexpected trap scause=%x, stval=%x, sepc=%x\n", scause, stval, user_pc);
     }

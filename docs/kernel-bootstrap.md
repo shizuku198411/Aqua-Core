@@ -5,6 +5,11 @@
 - `src/kernel/kernel.c`
 - `src/kernel/time/timer.c`
 
+関連:
+
+- [Trap Handler](./trap-handler.md)
+- [Mode Transition](./mode-transition.md)
+
 ## 起動シーケンス
 
 1. `boot()` (`.text.boot`) で `sp = __stack_top`
@@ -15,7 +20,6 @@
    - `stvec = kernel_entry`
    - `enable_timer_interrupt()`
    - `timer_set_next()`
-   - banner 表示
    - idle プロセス作成 (`pid=0`)
    - shell プロセス作成
    - `yield()` 開始
@@ -47,16 +51,4 @@ yield();
 - `handle_trap()` 呼び出し
 - 復元して `sret`
 
-trap 入口が `sscratch` 前提なので、スケジューラ側で `sscratch` を次プロセスのカーネルスタック top に更新しています。
-
-## timer 初期化
-
-`enable_timer_interrupt()`:
-
-- `sie.STIE` をセット
-- `sstatus.SIE` をセット
-
-`timer_set_next()`:
-
-- `rdtime` 取得
-- `stimecmp = now + TIMER_INTERVAL`
+`sscratch` の運用詳細は [Mode Transition](./mode-transition.md) を参照してください。

@@ -43,10 +43,15 @@ SECTIONS {
 ## 実装での使い道
 
 - `__bss`, `__bss_end`
-  - `src/kernel/kernel.c` で `.bss` クリア
+  - `src/kernel/kernel.c` で `.bss` をゼロクリア
 - `__stack_top`
   - `boot()` の初期スタック
 - `__free_ram`, `__free_ram_end`
   - `src/kernel/mm/memory.c` の bitmap allocator 管理範囲
 - `__kernel_base`
-  - `src/kernel/proc/process.c` のカーネル領域恒等マップに利用
+  - `src/kernel/proc/process.c` のカーネル領域恒等マップ
+
+関連:
+
+- [Kernel Bootstrap](./kernel-bootstrap.md)
+- [Memory / Process](./memory-process.md)

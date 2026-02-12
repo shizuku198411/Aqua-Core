@@ -11,7 +11,7 @@
 #define PAGE_X      (1 << 3)        // executable
 #define PAGE_U      (1 << 4)        // accessable from U-Mode
 
-void memory_init(void);
+uint32_t memory_init(void);
 paddr_t alloc_pages(uint32_t n);
 void free_pages(paddr_t paddr, uint32_t n);
 void map_page(uint32_t *table1, uint32_t vaddr, paddr_t paddr, uint32_t flags);

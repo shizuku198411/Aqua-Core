@@ -31,3 +31,13 @@ long getchar(void) {
     struct sbiret ret = sbi_call(0, 0, 0, 0, 0, 0, 0, 2);
     return ret.error;
 }
+
+
+void sbi_shutdown(void) {
+    // Legacy SBI shutdown extension.
+    sbi_call(0, 0, 0, 0, 0, 0, 0, 8);
+
+    for (;;) {
+        __asm__ __volatile__("wfi");
+    }
+}

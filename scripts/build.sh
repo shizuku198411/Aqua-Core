@@ -29,6 +29,12 @@ $CC $CFLAGS -Wl,-T$USER_SRC_DIR/user.ld -Wl,-Map=$MAP_DIR/ps.map -o $BIN_DIR/ps.
 $OBJCOPY --set-section-flags .bss=alloc,contents -O binary $BIN_DIR/ps.elf $BIN_DIR/ps.bin
 $OBJCOPY -Ibinary -Oelf32-littleriscv $BIN_DIR/ps.bin $OBJ_DIR/ps.bin.o
 
+# ipc_rx
+$CC $CFLAGS -Wl,-T$USER_SRC_DIR/user.ld -Wl,-Map=$MAP_DIR/ipc_rx.map -o $BIN_DIR/ipc_rx.elf \
+    $USER_RUNTIME_DIR/*.c $USER_APPS_DIR/ipc_rx/*.c $LIB_SRC_DIR/commonlibs.c
+$OBJCOPY --set-section-flags .bss=alloc,contents -O binary $BIN_DIR/ipc_rx.elf $BIN_DIR/ipc_rx.bin
+$OBJCOPY -Ibinary -Oelf32-littleriscv $BIN_DIR/ipc_rx.bin $OBJ_DIR/ipc_rx.bin.o
+
 # kernel
 $CC $CFLAGS -Wl,-T$KERNEL_SRC_DIR/kernel.ld -Wl,-Map=$MAP_DIR/kernel.map -o $BIN_DIR/kernel.elf \
     $LIB_SRC_DIR/commonlibs.c \
@@ -38,4 +44,4 @@ $CC $CFLAGS -Wl,-T$KERNEL_SRC_DIR/kernel.ld -Wl,-Map=$MAP_DIR/kernel.map -o $BIN
     $KERNEL_SRC_DIR/trap/*.c \
     $KERNEL_SRC_DIR/time/*.c \
     $KERNEL_SRC_DIR/platform/*.c \
-    $OBJ_DIR/shell.bin.o $OBJ_DIR/ps.bin.o
+    $OBJ_DIR/shell.bin.o $OBJ_DIR/ps.bin.o $OBJ_DIR/ipc_rx.bin.o

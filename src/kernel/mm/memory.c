@@ -22,7 +22,7 @@ static inline void bitmap_clear(uint32_t idx) {
     page_bitmap[idx / 8] &= (uint8_t) ~(1u << (idx % 8));
 }
 
-void memory_init(void) {
+uint32_t memory_init(void) {
     paddr_t free_start = (paddr_t) __free_ram;
     paddr_t free_end = (paddr_t) __free_ram_end;
 
@@ -48,6 +48,8 @@ void memory_init(void) {
     managed_base = free_start + bitmap_pages * PAGE_SIZE;
     managed_pages = total_pages - bitmap_pages;
     memory_initialized = true;
+    
+    return total_pages;
 }
 
 paddr_t alloc_pages(uint32_t n) {

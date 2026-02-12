@@ -25,6 +25,18 @@ void handle_syscall(struct trap_frame *f) {
             syscall_handle_clone(f);
             break;
 
+        case SYSCALL_WAITPID:
+            syscall_handle_waitpid(f);
+            break;
+
+        case SYSCALL_IPC_SEND:
+            syscall_handle_ipc_send(f);
+            break;
+
+        case SYSCALL_IPC_RECV:
+            syscall_handle_ipc_recv(f);
+            break;
+
         case SYSCALL_BITMAP:
             syscall_handle_bitmap(f);
             break;
