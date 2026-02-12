@@ -1,6 +1,6 @@
 #pragma once
 
-#define TIMER_INTERVAL 1000000  // 100ms
+#define TIMER_INTERVAL 200000  // 20ms
 
 
 void enable_timer_interrupt(void);

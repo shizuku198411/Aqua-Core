@@ -46,26 +46,47 @@ static int parse_int(const char *s, int *out) {
     return 0;
 }
 
+static void discard_line_tail(void) {
+    while (1) {
+        char ch = getchar();
+        if (ch == '\r' || ch == '\n') {
+            return;
+        }
+    }
+}
+
 void main(void) {
     while (1) {
 prompt:
         printf("aqua-core:$ ");
         char cmdline[64];
-        for (int i = 0;; i++) {
+        int len = 0;
+        for (;;) {
             char ch = getchar();
-            putchar(ch);
-            if (i == sizeof(cmdline) - 1) {
-                printf("command too long\n");
-                goto prompt;
-            }
-            else if (ch == '\r') {
+
+            if (ch == '\r' || ch == '\n') {
                 printf("\n");
-                cmdline[i] = '\0';
+                cmdline[len] = '\0';
                 break;
             }
-            else {
-                cmdline[i] = ch;
+
+            // Handle both BS (0x08) and DEL (0x7f) as erase one character.
+            if (ch == '\b' || ch == 0x7f) {
+                if (len > 0) {
+                    len--;
+                    printf("\b \b");
+                }
+                continue;
             }
+
+            if (len == sizeof(cmdline) - 1) {
+                printf("\ncommand too long\n");
+                discard_line_tail();
+                goto prompt;
+            }
+
+            cmdline[len++] = ch;
+            putchar(ch);
         }
 
         char *argv[4];
