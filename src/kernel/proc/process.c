@@ -409,6 +409,61 @@ fail:
     return -1;
 }
 
+static void free_user_pages_only(struct process *proc) {
+    if (!proc || !proc->page_table) return;
+
+    uint32_t *table1 = proc->page_table;
+    for (uint32_t i = 0; i < proc->user_pages; i++) {
+        uint32_t vaddr = (USER_BASE + i * PAGE_SIZE);
+        uint32_t vpn1 = (vaddr >> 22) &0x3ff;
+        uint32_t vpn0 = (vaddr >> 12) &0x3ff;
+
+        if ((table1[vpn1] & PAGE_V) == 0) continue;
+        uint32_t *table0 = (uint32_t *)((table1[vpn1] >> 10) * PAGE_SIZE);
+        if ((table0[vpn0] & PAGE_V) == 0) continue;
+
+        paddr_t paddr = (paddr_t)((table0[vpn0] >> 10) * PAGE_SIZE);
+        free_pages(paddr, 1);
+        table0[vpn0] = 0;
+    }
+    proc->user_pages = 0;
+}
+
+int process_exec(const void *image, size_t image_size, const char *name) {
+    if (!current_proc || !image || image_size == 0) {
+        return -1;
+    }
+
+    // free old user page
+    free_user_pages_only(current_proc);
+
+    // map new image
+    uint32_t pages = (uint32_t)((image_size + PAGE_SIZE - 1) / PAGE_SIZE);
+    for (uint32_t off = 0; off < image_size; off += PAGE_SIZE) {
+        paddr_t page = alloc_pages(1);
+        if (!page) {
+            return -1;
+        }
+        size_t remain = image_size - off;
+        size_t copy_size = remain < PAGE_SIZE ? remain : PAGE_SIZE;
+        memcpy((void *)page, (const uint8_t *)image + off, copy_size);
+
+        map_page(current_proc->page_table, USER_BASE + off, page, PAGE_U | PAGE_R | PAGE_W | PAGE_X);
+    }
+
+    // update meta
+    current_proc->user_pages = pages;
+    set_process_name(current_proc, name);
+    current_proc->wait_reason = PROC_WAIT_NONE;
+    current_proc->wait_pid = -1;
+    current_proc->time_slice = SCHED_TIME_SLICE_TICKS;
+    current_proc->run_ticks = 0;
+
+    WRITE_CSR(sepc, USER_BASE);
+
+    return 0;
+}
+
 void scheduler_on_timer_tick(void) {
     if (!current_proc || current_proc->state != PROC_RUNNABLE || current_proc->pid <= 0) {
         return;
