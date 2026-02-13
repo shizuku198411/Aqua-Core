@@ -152,12 +152,16 @@ prompt:
             shell_cmd_kernel_info();
         }
 
-        else if (strcmp(argv[0], "history") == 0) {
+        else if (strcmp(argv[0], "history") == 0 && argc == 1) {
             shell_cmd_history();
         }
 
         else if (strcmp(argv[0], "bitmap") == 0 && argc == 1) {
             shell_cmd_bitmap();
+        }
+
+        else if (strcmp(argv[0], "date") == 0 && argc == 1) {
+            shell_cmd_gettime();
         }
 
         else if (strcmp(argv[0], "shutdown") == 0 && argc == 1) {

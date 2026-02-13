@@ -26,15 +26,20 @@ uint32_t memory_init(void) {
     paddr_t free_start = (paddr_t) __free_ram;
     paddr_t free_end = (paddr_t) __free_ram_end;
 
+    printf("     [mem] check free ram range...");
     if (free_end <= free_start) {
         PANIC("invalid free ram range");
     }
+    printf("OK\n");
 
+    printf("     [mem] calculate page size...");
     uint32_t total_pages = (free_end - free_start) / PAGE_SIZE;
     if (total_pages == 0) {
         PANIC("no allocatable pages");
     }
+    printf("OK\n");
 
+    printf("     [mem] create bitmap...");
     uint32_t bitmap_bytes = (total_pages + 7) / 8;
     uint32_t bitmap_pages = (bitmap_bytes + PAGE_SIZE - 1) / PAGE_SIZE;
 
@@ -44,6 +49,7 @@ uint32_t memory_init(void) {
 
     page_bitmap = (uint8_t *) free_start;
     memset(page_bitmap, 0, bitmap_pages * PAGE_SIZE);
+    printf("OK\n");
 
     managed_base = free_start + bitmap_pages * PAGE_SIZE;
     managed_pages = total_pages - bitmap_pages;

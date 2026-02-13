@@ -3,6 +3,7 @@
 #include "kernel.h"
 #include "process.h"
 #include "fs.h"
+#include "rtc.h"
 
 void putchar(char ch);
 long getchar(void);
@@ -23,4 +24,5 @@ int fs_mkdir(const char *path);
 int fs_readdir(const char *path, int index, struct fs_dirent *out);
 int fs_unlink(const char *path);
 int fs_rmdir(const char *path);
+int gettime(struct time_spec *out);
 __attribute__((noreturn)) void exit(void);

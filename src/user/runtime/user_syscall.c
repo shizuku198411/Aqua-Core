@@ -1,6 +1,7 @@
 #include "process.h"
 #include "syscall.h"
 #include "fs.h"
+#include "rtc.h"
 
 
 int syscall(int sysno, int arg0, int arg1, int arg2) {
@@ -102,4 +103,8 @@ int fs_unlink(const char *path) {
 
 int fs_rmdir(const char *path) {
     return syscall(SYSCALL_RMDIR, (int) path, 0, 0);
+}
+
+int gettime(struct time_spec *out) {
+    return syscall(SYSCALL_GETTIME, (int) out, 0, 0);
 }

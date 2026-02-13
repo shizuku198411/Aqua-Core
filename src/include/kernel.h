@@ -91,11 +91,13 @@ struct trap_frame {
 #define USER_BASE 0x1000000
 #define MMIO_BASE 0x10000000
 #define MMIO_END  0x10010000
-#define SSTATUS_SPIE    (1 << 5)
+#define SSTATUS_SPIE (1 << 5)
+#define SSTATUS_SUM  (1u << 18)
 #define KERNEL_VERSION_MAX 16
 
 struct kernel_info {
     char version[KERNEL_VERSION_MAX];
+    char time[40];
     uint32_t total_pages;
     uint32_t page_size;
     uint32_t kernel_base;

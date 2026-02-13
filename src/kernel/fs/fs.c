@@ -685,40 +685,40 @@ void fs_init(void) {
     printf("     [fs] reset fd/mount tables...");
     memset(fd_table, 0, sizeof(fd_table));
     memset(mounts, 0, sizeof(mounts));
-    printf("done.\n");
+    printf("OK\n");
 
     printf("     [fs] init block device (virtio-blk)...");
     blockdev_init();
-    printf("done.\n");
+    printf("OK\n");
 
     // Root is persistent backend (PFS on blockdev abstraction).
     printf("     [fs] init rootfs (persistent pfs)...");
     nodefs_init_instance(&rootfs, 1);
-    printf("done.\n");
+    printf("OK\n");
 
     // /tmp is volatile RAMFS backend.
     printf("     [fs] init tmpfs (volatile ramfs)...");
     nodefs_init_instance(&tmpfs, 0);
-    printf("done.\n");
+    printf("OK\n");
 
     printf("     [fs] mount: / -> rootfs ...");
     if (vfs_mount("/", &nodefs_ops, &rootfs) < 0) {
         PANIC("failed to mount root fs");
     }
-    printf("done.\n");
+    printf("OK\n");
 
     // Ensure mountpoint exists in root namespace for `ls /`.
     if (nodefs_resolve_path(&rootfs, "/tmp") < 0) {
         printf("     [fs] create mountpoint: /tmp ...");
         (void) nodefs_mkdir(&rootfs, "/tmp");
-        printf("done.\n");
+        printf("OK\n");
     }
 
     printf("     [fs] mount: /tmp -> tmpfs ...");
     if (vfs_mount("/tmp", &nodefs_ops, &tmpfs) < 0) {
         PANIC("failed to mount tmp fs");
     }
-    printf("done.\n");
+    printf("OK\n");
 }
 
 int fs_open(int pid, const char *path, int flags) {

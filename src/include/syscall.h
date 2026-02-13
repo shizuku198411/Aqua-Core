@@ -22,6 +22,7 @@
 #define SYSCALL_READDIR     17
 #define SYSCALL_UNLINK      18
 #define SYSCALL_RMDIR       19
+#define SYSCALL_GETTIME     20
 
 #define APP_ID_SHELL        1
 #define APP_ID_IPC_RX       2

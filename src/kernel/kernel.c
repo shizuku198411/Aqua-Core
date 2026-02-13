@@ -9,6 +9,7 @@
 #include "fs.h"
 #include "fs_internal.h"
 #include "blockdev.h"
+#include "rtc.h"
 
 
 extern char __bss[], __bss_end[], __stack_top[];
@@ -151,15 +152,17 @@ void kernel_bootstrap(void) {
     printf("[*] kernel bootstrap started.\n");
 
     // init memory
-    printf("[*] initialize memory...");
+    printf("[*] initialize memory...\n");
+    printf("     [mem] bss zero clear...");
     memset(__bss, 0, (size_t) __bss_end - (size_t) __bss);
+    printf("OK\n");
     kernel_total_pages = memory_init();
-    printf("done.\n");
+    printf("    OK\n");
 
     // set trap handler to stvec registry
-    printf("[*] set trapvector to reg:stvec...");
+    printf("[*] initialize trapvector...");
     WRITE_CSR(stvec, (uint32_t) kernel_entry);
-    printf("done.\n");
+    printf("OK\n");
 
     // Ensure trap-entry stack swap source is valid before first timer interrupt.
     uint32_t kernel_sp;
@@ -167,40 +170,54 @@ void kernel_bootstrap(void) {
     WRITE_CSR(sscratch, kernel_sp);
 
     // enable supervisor timer interrupt
-    printf("[*] enable timer interrupt...");
+    printf("[*] initialize timer interrupt...\n");
+    printf("     [timer] enable timer interrupt...");
     enable_timer_interrupt();
+    printf("OK\n");
+    printf("     [timer] set next timer...");
     timer_set_next();
-    printf("done.\n");
+    printf("OK\n");
+    printf("    OK\n");
 
     // initialize in-memory filesystem
     printf("[*] initialize filesystem...");
     fs_init();
-    printf("    done.\n");
+    printf("    OK\n");
+
+    // init rtc
+    printf("[*] initialize real-time clock...");
+    if (rtc_init() < 0) {
+        PANIC("rtc init failed");
+    }
+    char ts[40];
+    unix_time_to_utc_str(rtc_now_sec(), ts, sizeof(ts));
+    printf("OK\n");
 
     // create idle process
-    printf("[*] setup process...");
+    printf("[*] initialize process...");
     idle_proc = create_process(NULL, 0, "idle");
     idle_proc->pid = 0;
     current_proc = idle_proc;
-    printf("done.\n");
+    printf("OK\n");
 
     // print kernel info
     printf("[*] kernel information:\n");
-    printf("     version       : %s\n", KERNEL_VERSION);
-    printf("     total pages   : %d\n", kernel_total_pages);
-    printf("     page size     : %d bytes\n", PAGE_SIZE);
-    printf("     kernel base   : 0x%x\n", KERNEL_BASE);
-    printf("     user base     : 0x%x\n", USER_BASE);
-    printf("     proc max      : %d\n", PROCS_MAX);
-    printf("     kernel stack  : %d bytes/proc\n", (int) sizeof(procs[0].stack));
-    printf("     time slice    : %d ticks\n", SCHED_TIME_SLICE_TICKS);
-    printf("     timer interval: %d ms\n", (TIMER_INTERVAL / 10000));
-    printf("     ramfs node max: %d\n", FS_MAX_NODES);
-    printf("     ramfs size max: %d bytes\n", FS_FILE_MAX_SIZE);
-    printf("     pfs blk count : %d\n", BLOCKDEV_BLOCK_COUNT);
-    printf("     pfs blk size  : %d bytes\n", BLOCKDEV_BLOCK_SIZE);
-    printf("     pfs img blks  : %d\n", (int) fs_get_pfs_image_blocks());
-    printf("     pfs img bytes : %d\n", (int) (fs_get_pfs_image_blocks() * BLOCKDEV_BLOCK_SIZE));
+    printf("     version         : %s\n", KERNEL_VERSION);
+    printf("     kenel boot time : %s\n", ts);
+    printf("     total pages     : %d\n", kernel_total_pages);
+    printf("     page size       : %d bytes\n", PAGE_SIZE);
+    printf("     kernel base     : 0x%x\n", KERNEL_BASE);
+    printf("     user base       : 0x%x\n", USER_BASE);
+    printf("     proc max        : %d\n", PROCS_MAX);
+    printf("     kernel stack    : %d bytes/proc\n", (int) sizeof(procs[0].stack));
+    printf("     time slice      : %d ticks\n", SCHED_TIME_SLICE_TICKS);
+    printf("     timer interval  : %d ms\n", (TIMER_INTERVAL / 10000));
+    printf("     ramfs node max  : %d\n", FS_MAX_NODES);
+    printf("     ramfs size max  : %d bytes\n", FS_FILE_MAX_SIZE);
+    printf("     pfs blk count   : %d\n", BLOCKDEV_BLOCK_COUNT);
+    printf("     pfs blk size    : %d bytes\n", BLOCKDEV_BLOCK_SIZE);
+    printf("     pfs img blks    : %d\n", (int) fs_get_pfs_image_blocks());
+    printf("     pfs img bytes   : %d\n", (int) (fs_get_pfs_image_blocks() * BLOCKDEV_BLOCK_SIZE));
 
     printf("[*] kernel bootstrap completed.\n");
 }
@@ -216,8 +233,11 @@ void kernel_get_info(struct kernel_info *out) {
     for (int i = 0; i < KERNEL_VERSION_MAX - 1 && KERNEL_VERSION[i] != '\0'; i++) {
         out->version[i] = KERNEL_VERSION[i];
     }
+    char ts[40];
+    unix_time_to_utc_str(rtc_now_sec(), ts, sizeof(ts));
 
     out->total_pages = kernel_total_pages;
+    strcpy_s(out->time, sizeof(ts), ts);
     out->page_size = PAGE_SIZE;
     out->kernel_base = KERNEL_BASE;
     out->user_base = USER_BASE;

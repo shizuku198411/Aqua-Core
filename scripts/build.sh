@@ -36,6 +36,7 @@ $CC $CFLAGS -Wl,-T$KERNEL_SRC_DIR/kernel.ld -Wl,-Map=$MAP_DIR/kernel.map -o $BIN
     $KERNEL_SRC_DIR/mm/*.c \
     $KERNEL_SRC_DIR/proc/*.c \
     $KERNEL_SRC_DIR/fs/*.c \
+    $KERNEL_SRC_DIR/rtc/*.c \
     $KERNEL_SRC_DIR/trap/*.c \
     $KERNEL_SRC_DIR/time/*.c \
     $KERNEL_SRC_DIR/platform/*.c \

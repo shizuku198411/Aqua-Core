@@ -81,6 +81,10 @@ void handle_syscall(struct trap_frame *f) {
             syscall_handle_rmdir(f);
             break;
 
+        case SYSCALL_GETTIME:
+            syscall_handle_gettime(f);
+            break;
+
         default:
             PANIC("undefined system call");
     }

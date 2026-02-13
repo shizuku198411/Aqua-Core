@@ -4,6 +4,7 @@
 #include "memory.h"
 #include "process.h"
 #include "fs_internal.h"
+#include "rtc.h"
 
 
 extern char __kernel_base[], __free_ram_end[];
@@ -226,6 +227,10 @@ struct process *create_process(const void *image, size_t image_size, const char 
 
     // Map MMIO region for device access while running in process page table.
     for (paddr_t paddr = MMIO_BASE; paddr < MMIO_END; paddr += PAGE_SIZE) {
+        map_page(page_table, paddr, paddr, PAGE_R | PAGE_W);
+    }
+    // Map RTC MMIO
+    for (paddr_t paddr = RTC_MMIO_BASE; paddr < RTC_MMIO_END; paddr += PAGE_SIZE) {
         map_page(page_table, paddr, paddr, PAGE_R | PAGE_W);
     }
 

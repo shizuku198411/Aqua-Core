@@ -3,8 +3,6 @@
 #include "process.h"
 #include "kernel.h"
 
-#define SSTATUS_SUM (1u << 18)
-
 extern struct process *current_proc;
 extern struct process *init_proc;
 extern char _binary___bin_shell_bin_start[], _binary___bin_shell_bin_size[];

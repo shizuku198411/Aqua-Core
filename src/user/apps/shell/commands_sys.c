@@ -1,6 +1,7 @@
 #include "commands_sys.h"
 #include "commonlibs.h"
 #include "user_syscall.h"
+#include "rtc.h"
 #include "shell.h"
 
 void shell_cmd_kernel_info(void) {
@@ -10,6 +11,7 @@ void shell_cmd_kernel_info(void) {
         printf("kernel_info failed\n");
     } else {
         printf("version       : %s\n", info.version);
+        printf("kernel time   : %s\n", info.time);
         printf("total pages   : %d\n", info.total_pages);
         printf("page size     : %d bytes\n", info.page_size);
         printf("kernel base   : 0x%x\n", info.kernel_base);
@@ -43,6 +45,19 @@ void shell_cmd_bitmap(void) {
         total++;
     }
     printf("bitmap: total=%d/used=%d/free=%d\n", total, used, (total - used));
+}
+
+void shell_cmd_gettime(void) {
+    struct time_spec info;
+    int ret = gettime(&info);
+    if (ret < 0) {
+        return;
+    }
+
+    uint64_t sec = ((uint64_t) info.sec_hi << 32) | info.sec_lo;
+    char ts[40];
+    unix_time_to_utc_str(sec, ts, sizeof(ts));
+    printf("%s\n", ts);
 }
 
 __attribute__((noreturn))
