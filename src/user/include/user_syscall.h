@@ -1,5 +1,6 @@
 #pragma once
 
+#include "kernel.h"
 #include "process.h"
 
 void putchar(char ch);
@@ -12,4 +13,5 @@ int ipc_send(int pid, int message);
 int ipc_recv(int *from_pid);
 int bitmap(int index);
 int kill(int pid);
+int kernel_info(struct kernel_info *out);
 __attribute__((noreturn)) void exit(void);

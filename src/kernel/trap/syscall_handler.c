@@ -45,6 +45,10 @@ void handle_syscall(struct trap_frame *f) {
             syscall_handle_kill(f);
             break;
 
+        case SYSCALL_KERNEL_INFO:
+            syscall_handle_kernel_info(f);
+            break;
+
         default:
             PANIC("undefined system call");
     }

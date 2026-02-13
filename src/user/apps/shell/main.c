@@ -95,6 +95,11 @@ prompt:
             goto prompt;
         }
 
+        // hello
+        else if (strcmp(argv[0], "hello") == 0) {
+            printf("Hello World from AquaCore!\n");
+        }
+
         // ps
         else if (strcmp(argv[0], "ps") == 0 && argc == 1) {
             int pid = spawn(APP_ID_PS);
@@ -106,6 +111,25 @@ prompt:
                 if (waited < 0) {
                     printf("waitpid failed\n");
                 }
+            }
+        }
+
+        // kernel_info
+        else if (strcmp(argv[0], "kernel_info") == 0 && argc == 1) {
+            struct kernel_info info;
+            int ret = kernel_info(&info);
+            if (ret < 0) {
+                printf("kernel_info failed\n");
+            } else {
+                printf("version       : %s\n", info.version);
+                printf("total pages   : %d\n", info.total_pages);
+                printf("page size     : %d bytes\n", info.page_size);
+                printf("kernel base   : 0x%x\n", info.kernel_base);
+                printf("user base     : 0x%x\n", info.user_base);
+                printf("proc max      : %d\n", info.proc_max);
+                printf("kernel stack  : %d bytes/proc\n", info.kernel_stack_bytes);
+                printf("time slice    : %d ticks\n", info.time_slice_ticks);
+                printf("timer interval: %d ms\n", info.timer_interval_ms);
             }
         }
 

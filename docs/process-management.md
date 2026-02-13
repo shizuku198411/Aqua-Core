@@ -35,6 +35,8 @@
 - IPC mailbox:
   - `ipc_has_message`, `ipc_from_pid`, `ipc_message`
 
+`PROCS_MAX` は現在 `64`、`PROC_NAME_MAX` は `16`。
+
 ## 2. PIDとスロット
 
 実体は固定配列 `procs[PROCS_MAX]`。  
@@ -59,10 +61,12 @@
 6. ユーザイメージを `USER_BASE` へページ単位で配置
 7. `state=PROC_RUNNABLE` と各種メタ情報（`name`, IPC, slice など）初期化
 
-`kernel_main()` では:
+空きスロットがない場合は `NULL` を返す。
 
-- `idle_proc = create_process(NULL, 0, "idle")`
-- `init_proc = create_process(shell_image, shell_size, "shell")`
+`kernel_bootstrap()` / `kernel_main()` では:
+
+- `kernel_bootstrap`: `idle_proc = create_process(NULL, 0, "idle")`
+- `kernel_main`: `init_proc = create_process(shell_image, shell_size, "shell")`
 
 ## 4. 状態遷移の基本
 
@@ -154,3 +158,13 @@ kill 実体は `process_kill(int target_pid)` (`src/kernel/proc/process.c`)。
 - `name[PROC_NAME_MAX]`
 
 `syscall_handle_ps` は `sstatus.SUM` を一時有効化し、ユーザポインタへ書き戻す。
+
+## 8. 実装上の注意点
+
+- `pid` を配列 index とみなして直接 `procs[pid]` に触れない
+- `create_process()` は `NULL` を返し得るため呼び出し側でエラー処理する
+- `EXITED` と `UNUSED` の意味を分離する
+  - `EXITED`: 終了済みだが回収前
+  - `UNUSED`: スロット再利用可能
+- trap入口と `sscratch` の整合を崩すと、`procs[]` ヘッダ破壊につながる
+- 非self kill は `PROC_EXITED` 化後に即時回収、self kill は `yield()` で離脱する

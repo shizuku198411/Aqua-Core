@@ -7,6 +7,10 @@
 AquaCoreは、RISC-V 32bit向けに開発しているマイクロカーネルです。  
 QEMU + OpenSBI 環境での動作を前提に実装しています。
 
+<p>
+  <img src="docs/assets/aquacore_terminal.png" alt="terminal">
+</p>
+
 ## 現在の実装機能
 
 - ブートストラップ
@@ -14,10 +18,8 @@ QEMU + OpenSBI 環境での動作を前提に実装しています。
   - S-mode trap 入口 (`kernel_entry`) 実装
   - Supervisor Timer Interrupt 有効化
 - Trap/割り込み
-  - U-mode `ecall` 処理
+  - U-mode `ecall` 処理 (syscall)
   - timer 割り込みでの再スケジュール判定
-- Syscall
-  - `putchar`, `getchar`, `exit`, `ps`, `clone/spawn`, `waitpid`, `kill`, `ipc_send`, `ipc_recv`, `bitmap`
 - 入力処理
   - コンソール入力リングバッファ
   - `getchar` の待機/起床制御（busy loop回避）

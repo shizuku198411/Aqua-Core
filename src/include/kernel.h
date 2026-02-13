@@ -87,9 +87,23 @@ struct trap_frame {
     uint32_t sp;
 } __attribute__((packed));
 
-
+#define KERNEL_BASE 0x80200000
 #define USER_BASE 0x1000000
 #define SSTATUS_SPIE    (1 << 5)
+#define KERNEL_VERSION_MAX 16
+
+struct kernel_info {
+    char version[KERNEL_VERSION_MAX];
+    uint32_t total_pages;
+    uint32_t page_size;
+    uint32_t kernel_base;
+    uint32_t user_base;
+    uint32_t proc_max;
+    uint32_t kernel_stack_bytes;
+    uint32_t time_slice_ticks;
+    uint32_t timer_interval_ms;
+};
 
 void user_entry(void);
 __attribute__((noreturn)) void kernel_shutdown(void);
+void kernel_get_info(struct kernel_info *out);

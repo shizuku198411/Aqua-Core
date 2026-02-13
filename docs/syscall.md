@@ -14,6 +14,7 @@
 
 - [Trap Handler](./trap-handler.md)
 - [Memory / Process](./memory-process.md)
+- [Process Management](./process-management.md)
 
 ## syscall 番号
 
@@ -54,3 +55,32 @@ SYSCALL_KILL   = 10
 - `syscall_process.c`: `exit`, `ps`, `clone`, `waitpid`, `kill`
 - `syscall_ipc.c`: `ipc_send`, `ipc_recv`
 - `syscall_debug.c`: `bitmap`
+
+## `ps` の返却形式
+
+`ps` は packed int ではなく `struct ps_info` をユーザバッファへ書き戻す。
+
+```c
+struct ps_info {
+    int  pid;
+    int  parent_pid;
+    int  state;
+    int  wait_reason;
+    char name[PROC_NAME_MAX];
+};
+```
+
+使い方:
+
+- `int ret = ps(index, &info);`
+- `ret == 0` で成功
+- `ret < 0` で失敗（index範囲外）
+
+## `kill` の意味
+
+- `kill(pid)` は `process_kill(pid)` を呼ぶ
+- 返り値:
+  - `>0`: 成功（対象pid）
+  - `-1`: 無効pid (`pid <= 0`)
+  - `-2`: 対象なし / 既に終了
+  - `-3`: initプロセスはkill禁止

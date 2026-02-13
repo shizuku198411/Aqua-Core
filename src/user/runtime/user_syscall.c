@@ -60,6 +60,10 @@ int kill(int pid) {
     return syscall(SYSCALL_KILL, pid, 0, 0);
 }
 
+int kernel_info(struct kernel_info *out) {
+    return syscall(SYSCALL_KERNEL_INFO, (int) out, 0, 0);
+}
+
 __attribute__((noreturn))
 void exit(void) {
     syscall(SYSCALL_EXIT, 0, 0, 0);

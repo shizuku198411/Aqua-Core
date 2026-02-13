@@ -13,6 +13,7 @@
 #define SYSCALL_IPC_RECV    9
 #define SYSCALL_SPAWN       SYSCALL_CLONE
 #define SYSCALL_KILL        10
+#define SYSCALL_KERNEL_INFO 11
 
 #define APP_ID_SHELL        1
 #define APP_ID_PS           2

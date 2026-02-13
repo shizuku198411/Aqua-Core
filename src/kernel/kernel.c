@@ -14,6 +14,30 @@ extern struct process *current_proc;
 extern struct process *idle_proc;
 extern struct process *init_proc;
 
+static uint32_t kernel_total_pages;
+
+void kernel_get_info(struct kernel_info *out) {
+    if (!out) {
+        return;
+    }
+
+    for (int i = 0; i < KERNEL_VERSION_MAX; i++) {
+        out->version[i] = '\0';
+    }
+    for (int i = 0; i < KERNEL_VERSION_MAX - 1 && KERNEL_VERSION[i] != '\0'; i++) {
+        out->version[i] = KERNEL_VERSION[i];
+    }
+
+    out->total_pages = kernel_total_pages;
+    out->page_size = PAGE_SIZE;
+    out->kernel_base = KERNEL_BASE;
+    out->user_base = USER_BASE;
+    out->proc_max = PROCS_MAX;
+    out->kernel_stack_bytes = (uint32_t) sizeof(((struct process *) 0)->stack);
+    out->time_slice_ticks = SCHED_TIME_SLICE_TICKS;
+    out->timer_interval_ms = TIMER_INTERVAL / 10000;
+}
+
 
 __attribute__((naked))
 __attribute__((aligned(4)))
@@ -144,9 +168,9 @@ void kernel_bootstrap(void) {
 
     // init memory
     printf("[*] initialize memory...");
-    memset(__bss, 0, (size_t)__bss_end - (size_t)__bss);
-    uint32_t total_pages = memory_init();
-    printf("done. total pages=%d\n", total_pages);
+    memset(__bss, 0, (size_t) __bss_end - (size_t) __bss);
+    kernel_total_pages = memory_init();
+    printf("done.\n");
 
     // set trap handler to stvec registry
     printf("[*] set trapvector to reg:stvec...");
@@ -162,7 +186,26 @@ void kernel_bootstrap(void) {
     printf("[*] enable sv timer interrupt...");
     enable_timer_interrupt();
     timer_set_next();
-    printf("done. timer interval=%dms\n", (TIMER_INTERVAL/10000));
+    printf("done.\n");
+
+    // create idle process
+    printf("[*] setup process...");
+    idle_proc = create_process(NULL, 0, "idle");
+    idle_proc->pid = 0;
+    current_proc = idle_proc;
+    printf("done.\n");
+
+    // print kernel info
+    printf("[*] kernel information:\n");
+    printf("     version       : %s\n", KERNEL_VERSION);
+    printf("     total pages   : %d\n", kernel_total_pages);
+    printf("     page size     : %d bytes\n", PAGE_SIZE);
+    printf("     kernel base   : 0x%x\n", KERNEL_BASE);
+    printf("     user base     : 0x%x\n", USER_BASE);
+    printf("     proc max      : %d\n", PROCS_MAX);
+    printf("     kernel stack  : %d bytes/proc\n", (int) sizeof(procs[0].stack));
+    printf("     time slice    : %d ticks\n", SCHED_TIME_SLICE_TICKS);
+    printf("     timer interval: %d ms\n", (TIMER_INTERVAL / 10000));
 
     printf("[*] kernel bootstrap completed.\n");
 }
@@ -171,11 +214,6 @@ void kernel_bootstrap(void) {
 void kernel_main(void) {
     kernel_bootstrap();
     banner();
-
-    // idle process
-    idle_proc = create_process(NULL, 0, "idle");
-    idle_proc->pid = 0;
-    current_proc = idle_proc;
 
     // start shell (init)
     init_proc = create_process(_binary___bin_shell_bin_start,

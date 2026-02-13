@@ -3,7 +3,7 @@
 #include "stdtypes.h"
 
 
-#define PROCS_MAX     16
+#define PROCS_MAX     64
 #define PROC_NAME_MAX 16
 
 // status
