@@ -13,7 +13,7 @@ fi
 # qemu
 QEMU=qemu-system-riscv32
 # options
-QEMU_OPT="-machine virt -bios default -nographic -serial mon:stdio --no-reboot -global virtio-mmio.force-legacy=true"
+QEMU_OPT="-machine virt -bios default -nographic -serial mon:stdio --no-reboot -global virtio-mmio.force-legacy=false"
 
 # start
 $QEMU $QEMU_OPT \

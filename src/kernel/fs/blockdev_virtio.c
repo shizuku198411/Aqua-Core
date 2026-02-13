@@ -11,16 +11,22 @@
 #define VIRTIO_MMIO_VERSION        0x004
 #define VIRTIO_MMIO_DEVICE_ID      0x008
 #define VIRTIO_MMIO_VENDOR_ID      0x00c
-#define VIRTIO_MMIO_HOST_FEATURES  0x010
-#define VIRTIO_MMIO_GUEST_FEATURES 0x020
-#define VIRTIO_MMIO_GUEST_PAGE_SIZE 0x028
+#define VIRTIO_MMIO_DEVICE_FEATURES     0x010
+#define VIRTIO_MMIO_DEVICE_FEATURES_SEL 0x014
+#define VIRTIO_MMIO_DRIVER_FEATURES     0x020
+#define VIRTIO_MMIO_DRIVER_FEATURES_SEL 0x024
 #define VIRTIO_MMIO_QUEUE_SEL      0x030
 #define VIRTIO_MMIO_QUEUE_NUM_MAX  0x034
 #define VIRTIO_MMIO_QUEUE_NUM      0x038
-#define VIRTIO_MMIO_QUEUE_ALIGN    0x03c
-#define VIRTIO_MMIO_QUEUE_PFN      0x040
+#define VIRTIO_MMIO_QUEUE_READY    0x044
 #define VIRTIO_MMIO_QUEUE_NOTIFY   0x050
 #define VIRTIO_MMIO_STATUS         0x070
+#define VIRTIO_MMIO_QUEUE_DESC_LOW  0x080
+#define VIRTIO_MMIO_QUEUE_DESC_HIGH 0x084
+#define VIRTIO_MMIO_QUEUE_AVAIL_LOW  0x090
+#define VIRTIO_MMIO_QUEUE_AVAIL_HIGH 0x094
+#define VIRTIO_MMIO_QUEUE_USED_LOW  0x0a0
+#define VIRTIO_MMIO_QUEUE_USED_HIGH 0x0a4
 #define VIRTIO_MMIO_CONFIG         0x100
 
 #define VIRTIO_MAGIC 0x74726976u
@@ -29,6 +35,7 @@
 
 #define VIRTIO_STATUS_ACKNOWLEDGE 1u
 #define VIRTIO_STATUS_DRIVER      2u
+#define VIRTIO_STATUS_FEATURES_OK 8u
 #define VIRTIO_STATUS_DRIVER_OK   4u
 #define VIRTIO_STATUS_FAILED      128u
 
@@ -42,6 +49,7 @@
 #define VIRTIO_BLK_F_SCSI          7
 #define VIRTIO_BLK_F_CONFIG_WCE    11
 #define VIRTIO_BLK_F_MQ            12
+#define VIRTIO_F_VERSION_1         32
 #define VIRTIO_F_ANY_LAYOUT        27
 #define VIRTIO_RING_F_INDIRECT_DESC 28
 #define VIRTIO_RING_F_EVENT_IDX    29
@@ -117,7 +125,7 @@ static int virtio_find_blk(void) {
         if (magic != VIRTIO_MAGIC) {
             continue;
         }
-        if (version != 1) {
+        if (version < 2) {
             continue;
         }
         if (dev_id != VIRTIO_DEV_BLOCK) {
@@ -153,8 +161,18 @@ static int virtio_setup_queue(void) {
     }
 
     mmio_write(VIRTIO_MMIO_QUEUE_NUM, VQ_NUM);
-    mmio_write(VIRTIO_MMIO_QUEUE_ALIGN, VQ_ALIGN);
-    mmio_write(VIRTIO_MMIO_QUEUE_PFN, ((uint32_t) &vq_mem[0]) / VQ_ALIGN);
+    mmio_write(VIRTIO_MMIO_QUEUE_READY, 0);
+
+    uint32_t desc = (uint32_t) vq_desc;
+    uint32_t avail = (uint32_t) vq_avail;
+    uint32_t used = (uint32_t) vq_used;
+    mmio_write(VIRTIO_MMIO_QUEUE_DESC_LOW, desc);
+    mmio_write(VIRTIO_MMIO_QUEUE_DESC_HIGH, 0);
+    mmio_write(VIRTIO_MMIO_QUEUE_AVAIL_LOW, avail);
+    mmio_write(VIRTIO_MMIO_QUEUE_AVAIL_HIGH, 0);
+    mmio_write(VIRTIO_MMIO_QUEUE_USED_LOW, used);
+    mmio_write(VIRTIO_MMIO_QUEUE_USED_HIGH, 0);
+    mmio_write(VIRTIO_MMIO_QUEUE_READY, 1);
 
     return 0;
 }
@@ -220,7 +238,7 @@ static int virtio_do_io(uint32_t type, uint32_t block_index, void *buf) {
 
 void blockdev_init(void) {
     if (virtio_find_blk() < 0) {
-        PANIC("virtio-blk(v1) not found");
+        PANIC("virtio-blk(modern) not found");
     }
 
     virtio_setup_vq_layout();
@@ -229,17 +247,31 @@ void blockdev_init(void) {
     mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_ACKNOWLEDGE);
     mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_ACKNOWLEDGE | VIRTIO_STATUS_DRIVER);
 
-    uint32_t features = mmio_read(VIRTIO_MMIO_HOST_FEATURES);
-    features &= ~(1u << VIRTIO_BLK_F_RO);
-    features &= ~(1u << VIRTIO_BLK_F_SCSI);
-    features &= ~(1u << VIRTIO_BLK_F_CONFIG_WCE);
-    features &= ~(1u << VIRTIO_BLK_F_MQ);
-    features &= ~(1u << VIRTIO_F_ANY_LAYOUT);
-    features &= ~(1u << VIRTIO_RING_F_EVENT_IDX);
-    features &= ~(1u << VIRTIO_RING_F_INDIRECT_DESC);
-    mmio_write(VIRTIO_MMIO_GUEST_FEATURES, features);
+    mmio_write(VIRTIO_MMIO_DEVICE_FEATURES_SEL, 0);
+    uint32_t features0 = mmio_read(VIRTIO_MMIO_DEVICE_FEATURES);
+    mmio_write(VIRTIO_MMIO_DEVICE_FEATURES_SEL, 1);
+    uint32_t features1 = mmio_read(VIRTIO_MMIO_DEVICE_FEATURES);
+    (void) features0;
 
-    mmio_write(VIRTIO_MMIO_GUEST_PAGE_SIZE, 4096);
+    // Modern virtio-mmio requires VIRTIO_F_VERSION_1 negotiation.
+    if ((features1 & (1u << (VIRTIO_F_VERSION_1 - 32))) == 0) {
+        mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_FAILED);
+        PANIC("virtio-blk missing VERSION_1");
+    }
+
+    // Keep negotiated features minimal: only VERSION_1.
+    mmio_write(VIRTIO_MMIO_DRIVER_FEATURES_SEL, 0);
+    mmio_write(VIRTIO_MMIO_DRIVER_FEATURES, 0);
+    mmio_write(VIRTIO_MMIO_DRIVER_FEATURES_SEL, 1);
+    mmio_write(VIRTIO_MMIO_DRIVER_FEATURES, (1u << (VIRTIO_F_VERSION_1 - 32)));
+
+    uint32_t status = mmio_read(VIRTIO_MMIO_STATUS);
+    status |= VIRTIO_STATUS_FEATURES_OK;
+    mmio_write(VIRTIO_MMIO_STATUS, status);
+    if ((mmio_read(VIRTIO_MMIO_STATUS) & VIRTIO_STATUS_FEATURES_OK) == 0) {
+        mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_FAILED);
+        PANIC("virtio-blk FEATURES_OK rejected");
+    }
 
     if (virtio_setup_queue() < 0) {
         mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_FAILED);

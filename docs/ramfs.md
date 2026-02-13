@@ -198,19 +198,24 @@ close:
 
 方式:
 
-- QEMU `virtio-mmio` legacy(v1) を使用
+- QEMU `virtio-mmio` modern(v1.0+) を使用
 - デバイス探索:
   - base: `0x10001000 + n * 0x1000`
-  - magic/version/device/vendor を検証
+  - magic/version/device/vendor を検証（`version >= 2`）
 - キュー:
   - split virtqueue
-  - `QUEUE_PFN` を使う legacy 設定
+  - modern queue register を使用
+  - `QUEUE_DESC_LOW/HIGH`, `QUEUE_AVAIL_LOW/HIGH`, `QUEUE_USED_LOW/HIGH`, `QUEUE_READY`
+- feature negotiation:
+  - `DEVICE_FEATURES_SEL` / `DRIVER_FEATURES_SEL` を使用
+  - `VIRTIO_F_VERSION_1` を必須でネゴ
+  - `FEATURES_OK` セット後に再読込で受理確認
 - I/O:
   - `virtio_do_io(VIRTIO_BLK_T_IN/OUT, block, buf)`
 
 QEMU起動条件（`scripts/start.sh`）:
 
-- `-global virtio-mmio.force-legacy=true`
+- `-global virtio-mmio.force-legacy=false`
 - `-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0`
 
 ## Syscall 経路
