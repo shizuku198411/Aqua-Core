@@ -100,9 +100,12 @@ void syscall_handle_kill(struct trap_frame *f) {
 }
 
 void syscall_handle_fork(struct trap_frame *f) {
-    // TODO: implement fork
-
-    f->a0 = -1;
+    int child_pid = process_fork(f);
+    if (child_pid < 0) {
+        f->a0 = -1;
+        return;
+    }
+    f->a0 = child_pid;
 }
 
 void syscall_handle_exec(struct trap_frame *f) {
