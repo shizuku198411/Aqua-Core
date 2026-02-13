@@ -173,25 +173,6 @@ prompt:
         }
 
         #ifdef DEBUG
-        else if (strcmp(argv[0], "syscall_test") == 0 && argc == 2) {
-            int ret;
-            if (strcmp(argv[1], "fork") == 0) {
-                ret = fork();
-            }
-            else if (strcmp(argv[1], "exec") == 0) {
-                ret = exec(APP_ID_IPC_RX);
-            }
-            else if (strcmp(argv[1], "dup2") == 0) {
-                ret = dup2(1, 2);
-            }
-            else {
-                printf("unknown syscall\n");
-                continue;
-            }
-            if (ret == -1) printf("not implemented\n");
-            else printf("syscall success\n");
-        }
-
         else if (strcmp(argv[0], "fork_test") == 0 && argc == 1) {
             int pid = fork();
             if (pid < 0) {
@@ -208,6 +189,26 @@ prompt:
             printf("[parent] child pid=%d\n", pid);
             int waited = waitpid(pid);
             printf("[parent] waitpid(%d) => %d\n", pid, waited);
+        }
+
+        else if (strcmp(argv[0], "exec_test") == 0 && argc == 1) {
+            int pid = fork();
+            if (pid < 0)  {
+                printf("fork failed\n");
+                continue;
+            }
+
+            if (pid == 0) {
+                printf("[child] fork() returned 0\n");
+                printf("[child] exec IPC_RX\n");
+                int ret = exec(APP_ID_IPC_RX);
+                if (ret < 0) {
+                    printf("[child] exec failed\n");
+                }
+                exit();
+            }
+
+            printf("[parent] child pid=%d\n", pid);
         }
         #endif
 

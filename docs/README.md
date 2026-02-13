@@ -16,6 +16,8 @@
   - bitmap allocator、プロセス生成/解放、タイムスライス付き RR、IPC mailbox
 - [Process Management](./process-management.md)
   - `struct process`、作成フロー、タイムスライス付きRR、`kill`/`waitpid`/`ps_info`
+- [Fork / Exec](./fork-exec.md)
+  - `fork` の親子分岐と `exec` のユーザ空間置換（最小実装）
 - [VFS / RAMFS / VirtIO Block Storage](./vfs.md)
   - / と /tmp の共存、永続化PFS、virtio-blk、障害原因と対策
 - [RTC / Time Syscall](./rtc.md)

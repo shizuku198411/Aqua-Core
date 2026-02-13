@@ -129,12 +129,8 @@ void syscall_handle_exec(struct trap_frame *f) {
             return;
     }
 
-    // TODO: implement exec
-    (void)image;
-    (void)image_size;
-    (void)name;
-
-    f->a0 = -1;
+    int ret = process_exec(image, image_size, name);
+    f->a0 = (ret < 0) ? -1 : 0;
 }
 
 void syscall_handle_dup2(struct trap_frame *f) {
