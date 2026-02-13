@@ -58,7 +58,7 @@ static void discard_line_tail(void) {
 void main(void) {
     while (1) {
 prompt:
-        printf("\033[34mqua-core\033[0m:$ ");
+        printf("\033[34maqua-core\033[0m:$ ");
         char cmdline[64];
         int len = 0;
         for (;;) {
@@ -99,21 +99,7 @@ prompt:
         else if (strcmp(argv[0], "hello") == 0) {
             printf("Hello World from AquaCore!\n");
         }
-
-        // ps
-        else if (strcmp(argv[0], "ps") == 0 && argc == 1) {
-            int pid = spawn(APP_ID_PS);
-            if (pid < 0) {
-                printf("failed to spawn ps\n");
-            }
-            else {
-                int waited = waitpid(pid);
-                if (waited < 0) {
-                    printf("waitpid failed\n");
-                }
-            }
-        }
-
+        
         // kernel_info
         else if (strcmp(argv[0], "kernel_info") == 0 && argc == 1) {
             struct kernel_info info;
@@ -130,6 +116,20 @@ prompt:
                 printf("kernel stack  : %d bytes/proc\n", info.kernel_stack_bytes);
                 printf("time slice    : %d ticks\n", info.time_slice_ticks);
                 printf("timer interval: %d ms\n", info.timer_interval_ms);
+            }
+        }
+
+        // ps
+        else if (strcmp(argv[0], "ps") == 0 && argc == 1) {
+            int pid = spawn(APP_ID_PS);
+            if (pid < 0) {
+                printf("failed to spawn ps\n");
+            }
+            else {
+                int waited = waitpid(pid);
+                if (waited < 0) {
+                    printf("waitpid failed\n");
+                }
             }
         }
 
@@ -187,17 +187,6 @@ prompt:
                 printf("ipc_send failed: receiver mailbox full\n");
             } else if (ret < 0) {
                 printf("ipc_send failed\n");
-            }
-        }
-
-        // ipc_recv
-        else if (strcmp(argv[0], "ipc_recv") == 0 && argc == 1) {
-            int from_pid = 0;
-            int msg = ipc_recv(&from_pid);
-            if (msg < 0) {
-                printf("ipc_recv failed\n");
-            } else {
-                printf("ipc from=%d msg=%d\n", from_pid, msg);
             }
         }
 

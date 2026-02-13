@@ -2,7 +2,7 @@
        0        0 80200000     1 . = 0x80200000
 80200000        0        0     1 __kernel_base = .
 80200000 80200000     1c54     4 .text
-80200000 80200000       12     2         /tmp/kernel-40ee5c.o:(.text.boot)
+80200000 80200000       12     2         /tmp/kernel-39f5bb.o:(.text.boot)
 80200000 80200000        0     1                 
 80200000 80200000        0     1                 
 80200000 80200000        0     1                 $x.1
@@ -10,7 +10,7 @@
 80200000 80200000       12     1                 boot
 80200012 80200012        0     1                 
 80200012 80200012        0     1                 
-80200012 80200012      26c     2         /tmp/commonlibs-6bd574.o:(.text)
+80200012 80200012      26c     2         /tmp/commonlibs-9931bc.o:(.text)
 80200012 80200012        0     1                 
 80200012 80200012        0     1                 
 80200012 80200012        0     1                 $x.0
@@ -260,7 +260,7 @@
 8020027c 8020027c        0     1                 
 8020027e 8020027e        0     1                 
 8020027e 8020027e        0     1                 
-80200280 80200280      322     4         /tmp/kernel-40ee5c.o:(.text)
+80200280 80200280      322     4         /tmp/kernel-39f5bb.o:(.text)
 80200280 80200280        0     1                 
 80200280 80200280        0     1                 
 80200280 80200280        0     1                 $x.0
@@ -435,7 +435,7 @@
 802005a2 802005a2        0     1                 
 802005a2 802005a2        0     1                 
 802005a2 802005a2        0     1                 
-802005a2 802005a2      44a     2         /tmp/memory-542322.o:(.text)
+802005a2 802005a2      44a     2         /tmp/memory-12321e.o:(.text)
 802005a2 802005a2        0     1                 
 802005a2 802005a2        0     1                 
 802005a2 802005a2        0     1                 $x.0
@@ -765,7 +765,7 @@
 802009ea 802009ea        0     1                 
 802009ec 802009ec        0     1                 
 802009ec 802009ec        0     1                 
-802009ec 802009ec      92e     2         /tmp/process-1c585f.o:(.text)
+802009ec 802009ec      92e     2         /tmp/process-4ffcab.o:(.text)
 802009ec 802009ec        0     1                 
 802009ec 802009ec        0     1                 
 802009ec 802009ec        0     1                 $x.0
@@ -1491,7 +1491,7 @@
 80201318 80201318        0     1                 
 8020131a 8020131a        0     1                 
 8020131a 8020131a        0     1                 
-8020131a 8020131a      168     2         /tmp/syscall_console-ebe2c0.o:(.text)
+8020131a 8020131a      168     2         /tmp/syscall_console-3e8980.o:(.text)
 8020131a 8020131a        0     1                 
 8020131a 8020131a        0     1                 
 8020131a 8020131a        0     1                 $x.0
@@ -1599,7 +1599,7 @@
 80201482 80201482        0     1                 
 80201482 80201482        0     1                 
 80201482 80201482        0     1                 
-80201482 80201482       c8     2         /tmp/syscall_debug-8adbbb.o:(.text)
+80201482 80201482       c8     2         /tmp/syscall_debug-b2191b.o:(.text)
 80201482 80201482        0     1                 
 80201482 80201482        0     1                 
 80201482 80201482        0     1                 $x.0
@@ -1643,7 +1643,7 @@
 80201546 80201546        0     1                 
 8020154a 8020154a        0     1                 
 8020154a 8020154a        0     1                 
-8020154a 8020154a       70     2         /tmp/syscall_handler-a1708a.o:(.text)
+8020154a 8020154a       70     2         /tmp/syscall_handler-6ab1a2.o:(.text)
 8020154a 8020154a        0     1                 
 8020154a 8020154a        0     1                 
 8020154a 8020154a        0     1                 $x.0
@@ -1694,7 +1694,7 @@
 802015b8 802015b8        0     1                 
 802015ba 802015ba        0     1                 
 802015ba 802015ba        0     1                 
-802015ba 802015ba      10e     2         /tmp/syscall_ipc-08cd24.o:(.text)
+802015ba 802015ba      10e     2         /tmp/syscall_ipc-89b95a.o:(.text)
 802015ba 802015ba        0     1                 
 802015ba 802015ba        0     1                 
 802015ba 802015ba        0     1                 $x.0
@@ -1758,7 +1758,7 @@
 802016c4 802016c4        0     1                 
 802016c8 802016c8        0     1                 
 802016c8 802016c8        0     1                 
-802016c8 802016c8      2da     2         /tmp/syscall_process-6f6832.o:(.text)
+802016c8 802016c8      2da     2         /tmp/syscall_process-a4dc2c.o:(.text)
 802016c8 802016c8        0     1                 
 802016c8 802016c8        0     1                 
 802016c8 802016c8        0     1                 $x.0
@@ -1958,7 +1958,7 @@
 8020199e 8020199e        0     1                 
 802019a2 802019a2        0     1                 
 802019a2 802019a2        0     1                 
-802019a2 802019a2      22c     2         /tmp/trap_handler-2b6a8d.o:(.text)
+802019a2 802019a2      22c     2         /tmp/trap_handler-15fe75.o:(.text)
 802019a2 802019a2        0     1                 
 802019a2 802019a2        0     1                 
 802019a2 802019a2        0     1                 $x.0
@@ -2135,7 +2135,7 @@
 80201bca 80201bca        0     1                 
 80201bce 80201bce        0     1                 
 80201bce 80201bce        0     1                 
-80201bce 80201bce       3c     2         /tmp/timer-c2ac81.o:(.text)
+80201bce 80201bce       3c     2         /tmp/timer-e68747.o:(.text)
 80201bce 80201bce        0     1                 
 80201bce 80201bce        0     1                 
 80201bce 80201bce        0     1                 $x.0
@@ -2161,7 +2161,7 @@
 80201c00 80201c00        0     1                 
 80201c08 80201c08        0     1                 
 80201c0a 80201c0a        0     1                 
-80201c0a 80201c0a       4a     2         /tmp/sbi-e5649b.o:(.text)
+80201c0a 80201c0a       4a     2         /tmp/sbi-b5432b.o:(.text)
 80201c0a 80201c0a        0     1                 
 80201c0a 80201c0a        0     1                 
 80201c0a 80201c0a        0     1                 $x.0
@@ -2189,60 +2189,60 @@
 80201c54 80201c54        0     1                 
 80201c54 80201c54      99c     4 .rodata
 80201c54 80201c54      92e     1         <internal>:(.rodata.str1.1)
-80202584 80202584       2c     4         /tmp/syscall_handler-a1708a.o:(.rodata)
+80202584 80202584       2c     4         /tmp/syscall_handler-6ab1a2.o:(.rodata)
 80202584 80202584        0     1                 .LJTI0_0
 80202584 80202584        0     1                 $d.1
-802025b0 802025b0       40     4         /tmp/trap_handler-2b6a8d.o:(.rodata)
+802025b0 802025b0       40     4         /tmp/trap_handler-15fe75.o:(.rodata)
 802025b0 802025b0        0     1                 .LJTI0_0
 802025b0 802025b0        0     1                 $d.1
-802025f0 802025f0    312c0     4 .data
-802025f0 802025f0    10b00     1         ./obj/shell.bin.o:(.data)
+802025f0 802025f0    31250     4 .data
+802025f0 802025f0    10a90     1         ./obj/shell.bin.o:(.data)
 802025f0 802025f0        0     1                 _binary___bin_shell_bin_start
-802130f0 802130f0        0     1                 _binary___bin_shell_bin_end
-802130f0 802130f0    10430     1         ./obj/ps.bin.o:(.data)
-802130f0 802130f0        0     1                 _binary___bin_ps_bin_start
-80223520 80223520        0     1                 _binary___bin_ps_bin_end
-80223520 80223520    10390     1         ./obj/ipc_rx.bin.o:(.data)
-80223520 80223520        0     1                 _binary___bin_ipc_rx_bin_start
-802338b0 802338b0        0     1                 _binary___bin_ipc_rx_bin_end
-802338b0 802338b0    81270     4 .bss
-802338b0 802338b0        0     1         __bss = .
-802338b0 802338b0        4     4         /tmp/kernel-40ee5c.o:(.sbss)
-802338b0 802338b0        4     1                 kernel_total_pages
-802338b0 802338b0        0     1                 $d.3
-802338b4 802338b4        d     4         /tmp/memory-542322.o:(.sbss)
-802338b4 802338b4        4     1                 page_bitmap
-802338b4 802338b4        0     1                 $d.2
-802338b8 802338b8        4     1                 managed_base
-802338bc 802338bc        4     1                 managed_pages
-802338c0 802338c0        1     1                 memory_initialized
-802338c4 802338c4    81200     4         /tmp/process-1c585f.o:(.bss)
-802338c4 802338c4        0     1                 $d.1
-802338c4 802338c4    81200     1                 procs
-802b4ac4 802b4ac4       10     4         /tmp/process-1c585f.o:(.sbss)
-802b4ac4 802b4ac4        0     1                 $d.2
-802b4ac4 802b4ac4        4     1                 current_proc
-802b4ac8 802b4ac8        1     1                 need_resched
-802b4acc 802b4acc        4     1                 init_proc
-802b4ad0 802b4ad0        4     1                 idle_proc
-802b4ad4 802b4ad4        c     4         /tmp/syscall_console-ebe2c0.o:(.sbss)
-802b4ad4 802b4ad4        4     1                 input_count
-802b4ad4 802b4ad4        0     1                 $d.1
-802b4ad8 802b4ad8        4     1                 input_tail
-802b4adc 802b4adc        4     1                 input_head
-802b4ae0 802b4ae0       40     1         /tmp/syscall_console-ebe2c0.o:(.bss)
-802b4ae0 802b4ae0       40     1                 input_buf
-802b4ae0 802b4ae0        0     1                 $d.2
-802b4b20 802b4b20        0     1         __bss_end = .
-802b4b20 802b4b20        0     1 . = ALIGN ( 4 )
-802b4b20 802b4b20    20000     1 . += 128 * 1024
-802d4b20 802d4b20        0     1 __stack_top = .
-802d4b20 802d4b20      4e0     1 . = ALIGN ( 4096 )
+80213080 80213080        0     1                 _binary___bin_shell_bin_end
+80213080 80213080    10430     1         ./obj/ps.bin.o:(.data)
+80213080 80213080        0     1                 _binary___bin_ps_bin_start
+802234b0 802234b0        0     1                 _binary___bin_ps_bin_end
+802234b0 802234b0    10390     1         ./obj/ipc_rx.bin.o:(.data)
+802234b0 802234b0        0     1                 _binary___bin_ipc_rx_bin_start
+80233840 80233840        0     1                 _binary___bin_ipc_rx_bin_end
+80233840 80233840    81270     4 .bss
+80233840 80233840        0     1         __bss = .
+80233840 80233840        4     4         /tmp/kernel-39f5bb.o:(.sbss)
+80233840 80233840        4     1                 kernel_total_pages
+80233840 80233840        0     1                 $d.3
+80233844 80233844        d     4         /tmp/memory-12321e.o:(.sbss)
+80233844 80233844        4     1                 page_bitmap
+80233844 80233844        0     1                 $d.2
+80233848 80233848        4     1                 managed_base
+8023384c 8023384c        4     1                 managed_pages
+80233850 80233850        1     1                 memory_initialized
+80233854 80233854    81200     4         /tmp/process-4ffcab.o:(.bss)
+80233854 80233854        0     1                 $d.1
+80233854 80233854    81200     1                 procs
+802b4a54 802b4a54       10     4         /tmp/process-4ffcab.o:(.sbss)
+802b4a54 802b4a54        0     1                 $d.2
+802b4a54 802b4a54        4     1                 current_proc
+802b4a58 802b4a58        1     1                 need_resched
+802b4a5c 802b4a5c        4     1                 init_proc
+802b4a60 802b4a60        4     1                 idle_proc
+802b4a64 802b4a64        c     4         /tmp/syscall_console-3e8980.o:(.sbss)
+802b4a64 802b4a64        4     1                 input_count
+802b4a64 802b4a64        0     1                 $d.1
+802b4a68 802b4a68        4     1                 input_tail
+802b4a6c 802b4a6c        4     1                 input_head
+802b4a70 802b4a70       40     1         /tmp/syscall_console-3e8980.o:(.bss)
+802b4a70 802b4a70       40     1                 input_buf
+802b4a70 802b4a70        0     1                 $d.2
+802b4ab0 802b4ab0        0     1         __bss_end = .
+802b4ab0 802b4ab0        0     1 . = ALIGN ( 4 )
+802b4ab0 802b4ab0    20000     1 . += 128 * 1024
+802d4ab0 802d4ab0        0     1 __stack_top = .
+802d4ab0 802d4ab0      550     1 . = ALIGN ( 4096 )
 802d5000 802d5000        0     1 __free_ram = .
 802d5000 802d5000  4000000     1 . += 64 * 1024 * 1024
 842d5000 842d5000        0     1 __free_ram_end = .
        0        0     1759     1 .debug_loc
-       0        0      352     1         /tmp/commonlibs-6bd574.o:(.debug_loc)
+       0        0      352     1         /tmp/commonlibs-9931bc.o:(.debug_loc)
        0        0        0     1                 
        0        0        0     1                 $d.2
       1e       1e        0     1                 
@@ -2264,13 +2264,13 @@
      2e0      2e0        0     1                 
      309      309        0     1                 
      33f      33f        0     1                 
-     352      352      140     1         /tmp/kernel-40ee5c.o:(.debug_loc)
+     352      352      140     1         /tmp/kernel-39f5bb.o:(.debug_loc)
      352      352        0     1                 
      352      352        0     1                 $d.4
      3f1      3f1        0     1                 
      45c      45c        0     1                 
      477      477        0     1                 
-     492      492      2d2     1         /tmp/memory-542322.o:(.debug_loc)
+     492      492      2d2     1         /tmp/memory-12321e.o:(.debug_loc)
      492      492        0     1                 
      492      492        0     1                 $d.3
      4b0      4b0        0     1                 
@@ -2292,7 +2292,7 @@
      720      720        0     1                 
      733      733        0     1                 
      751      751        0     1                 
-     764      764      719     1         /tmp/process-1c585f.o:(.debug_loc)
+     764      764      719     1         /tmp/process-4ffcab.o:(.debug_loc)
      764      764        0     1                 
      764      764        0     1                 $d.4
      782      782        0     1                 
@@ -2341,13 +2341,13 @@
      df4      df4        0     1                 
      e27      e27        0     1                 
      e5b      e5b        0     1                 
-     e7d      e7d       62     1         /tmp/syscall_console-ebe2c0.o:(.debug_loc)
+     e7d      e7d       62     1         /tmp/syscall_console-3e8980.o:(.debug_loc)
      e7d      e7d        0     1                 
      e7d      e7d        0     1                 $d.3
      e90      e90        0     1                 
      ea3      ea3        0     1                 
      ecc      ecc        0     1                 
-     edf      edf       88     1         /tmp/syscall_debug-8adbbb.o:(.debug_loc)
+     edf      edf       88     1         /tmp/syscall_debug-b2191b.o:(.debug_loc)
      edf      edf        0     1                 
      edf      edf        0     1                 $d.1
      efd      efd        0     1                 
@@ -2355,10 +2355,10 @@
      f2e      f2e        0     1                 
      f41      f41        0     1                 
      f54      f54        0     1                 
-     f67      f67       13     1         /tmp/syscall_handler-a1708a.o:(.debug_loc)
+     f67      f67       13     1         /tmp/syscall_handler-6ab1a2.o:(.debug_loc)
      f67      f67        0     1                 
      f67      f67        0     1                 $d.3
-     f7a      f7a       c1     1         /tmp/syscall_ipc-08cd24.o:(.debug_loc)
+     f7a      f7a       c1     1         /tmp/syscall_ipc-89b95a.o:(.debug_loc)
      f7a      f7a        0     1                 
      f7a      f7a        0     1                 $d.1
      f98      f98        0     1                 
@@ -2369,7 +2369,7 @@
     1002     1002        0     1                 
     1015     1015        0     1                 
     1028     1028        0     1                 
-    103b     103b      305     1         /tmp/syscall_process-6f6832.o:(.debug_loc)
+    103b     103b      305     1         /tmp/syscall_process-a4dc2c.o:(.debug_loc)
     103b     103b        0     1                 
     103b     103b        0     1                 $d.2
     104e     104e        0     1                 
@@ -2388,7 +2388,7 @@
     12f1     12f1        0     1                 
     130f     130f        0     1                 
     1322     1322        0     1                 
-    1340     1340      2f8     1         /tmp/trap_handler-2b6a8d.o:(.debug_loc)
+    1340     1340      2f8     1         /tmp/trap_handler-15fe75.o:(.debug_loc)
     1340     1340        0     1                 
     1340     1340        0     1                 $d.3
     13e2     13e2        0     1                 
@@ -2397,14 +2397,14 @@
     154f     154f        0     1                 
     1612     1612        0     1                 
     1625     1625        0     1                 
-    1638     1638       5f     1         /tmp/timer-c2ac81.o:(.debug_loc)
+    1638     1638       5f     1         /tmp/timer-e68747.o:(.debug_loc)
     1638     1638        0     1                 
     1638     1638        0     1                 $d.1
     164b     164b        0     1                 
     165e     165e        0     1                 
     1671     1671        0     1                 
     1684     1684        0     1                 
-    1697     1697       c2     1         /tmp/sbi-e5649b.o:(.debug_loc)
+    1697     1697       c2     1         /tmp/sbi-b5432b.o:(.debug_loc)
     1697     1697        0     1                 
     1697     1697        0     1                 $d.1
     16aa     16aa        0     1                 
@@ -2416,70 +2416,70 @@
     172f     172f        0     1                 
     1744     1744        0     1                 
        0        0     10aa     1 .debug_abbrev
-       0        0      128     1         /tmp/commonlibs-6bd574.o:(.debug_abbrev)
+       0        0      128     1         /tmp/commonlibs-9931bc.o:(.debug_abbrev)
        0        0        0     1                 $d.3
-     128      128      1a2     1         /tmp/kernel-40ee5c.o:(.debug_abbrev)
+     128      128      1a2     1         /tmp/kernel-39f5bb.o:(.debug_abbrev)
      128      128        0     1                 $d.5
-     2ca      2ca      18e     1         /tmp/memory-542322.o:(.debug_abbrev)
+     2ca      2ca      18e     1         /tmp/memory-12321e.o:(.debug_abbrev)
      2ca      2ca        0     1                 $d.4
-     458      458      311     1         /tmp/process-1c585f.o:(.debug_abbrev)
+     458      458      311     1         /tmp/process-4ffcab.o:(.debug_abbrev)
      458      458        0     1                 $d.5
-     769      769      194     1         /tmp/syscall_console-ebe2c0.o:(.debug_abbrev)
+     769      769      194     1         /tmp/syscall_console-3e8980.o:(.debug_abbrev)
      769      769        0     1                 $d.4
-     8fd      8fd       ee     1         /tmp/syscall_debug-8adbbb.o:(.debug_abbrev)
+     8fd      8fd       ee     1         /tmp/syscall_debug-b2191b.o:(.debug_abbrev)
      8fd      8fd        0     1                 $d.2
-     9eb      9eb       db     1         /tmp/syscall_handler-a1708a.o:(.debug_abbrev)
+     9eb      9eb       db     1         /tmp/syscall_handler-6ab1a2.o:(.debug_abbrev)
      9eb      9eb        0     1                 $d.4
-     ac6      ac6      11c     1         /tmp/syscall_ipc-08cd24.o:(.debug_abbrev)
+     ac6      ac6      11c     1         /tmp/syscall_ipc-89b95a.o:(.debug_abbrev)
      ac6      ac6        0     1                 $d.2
-     be2      be2      1b6     1         /tmp/syscall_process-6f6832.o:(.debug_abbrev)
+     be2      be2      1b6     1         /tmp/syscall_process-a4dc2c.o:(.debug_abbrev)
      be2      be2        0     1                 $d.3
-     d98      d98      125     1         /tmp/trap_handler-2b6a8d.o:(.debug_abbrev)
+     d98      d98      125     1         /tmp/trap_handler-15fe75.o:(.debug_abbrev)
      d98      d98        0     1                 $d.4
-     ebd      ebd       de     1         /tmp/timer-c2ac81.o:(.debug_abbrev)
+     ebd      ebd       de     1         /tmp/timer-e68747.o:(.debug_abbrev)
      ebd      ebd        0     1                 $d.2
-     f9b      f9b      10f     1         /tmp/sbi-e5649b.o:(.debug_abbrev)
+     f9b      f9b      10f     1         /tmp/sbi-b5432b.o:(.debug_abbrev)
      f9b      f9b        0     1                 $d.2
        0        0     37d7     1 .debug_info
-       0        0      37b     1         /tmp/commonlibs-6bd574.o:(.debug_info)
+       0        0      37b     1         /tmp/commonlibs-9931bc.o:(.debug_info)
        0        0        0     1                 $d.4
-     37b      37b      6e9     1         /tmp/kernel-40ee5c.o:(.debug_info)
+     37b      37b      6e9     1         /tmp/kernel-39f5bb.o:(.debug_info)
      37b      37b        0     1                 $d.6
-     a64      a64      59c     1         /tmp/memory-542322.o:(.debug_info)
+     a64      a64      59c     1         /tmp/memory-12321e.o:(.debug_info)
      a64      a64        0     1                 $d.5
-    1000     1000      a71     1         /tmp/process-1c585f.o:(.debug_info)
+    1000     1000      a71     1         /tmp/process-4ffcab.o:(.debug_info)
     1000     1000        0     1                 $d.6
-    1a71     1a71      38a     1         /tmp/syscall_console-ebe2c0.o:(.debug_info)
+    1a71     1a71      38a     1         /tmp/syscall_console-3e8980.o:(.debug_info)
     1a71     1a71        0     1                 $d.5
-    1dfb     1dfb      344     1         /tmp/syscall_debug-8adbbb.o:(.debug_info)
+    1dfb     1dfb      344     1         /tmp/syscall_debug-b2191b.o:(.debug_info)
     1dfb     1dfb        0     1                 $d.3
-    213f     213f      32f     1         /tmp/syscall_handler-a1708a.o:(.debug_info)
+    213f     213f      32f     1         /tmp/syscall_handler-6ab1a2.o:(.debug_info)
     213f     213f        0     1                 $d.5
-    246e     246e      365     1         /tmp/syscall_ipc-08cd24.o:(.debug_info)
+    246e     246e      365     1         /tmp/syscall_ipc-89b95a.o:(.debug_info)
     246e     246e        0     1                 $d.3
-    27d3     27d3      640     1         /tmp/syscall_process-6f6832.o:(.debug_info)
+    27d3     27d3      640     1         /tmp/syscall_process-a4dc2c.o:(.debug_info)
     27d3     27d3        0     1                 $d.4
-    2e13     2e13      4e9     1         /tmp/trap_handler-2b6a8d.o:(.debug_info)
+    2e13     2e13      4e9     1         /tmp/trap_handler-15fe75.o:(.debug_info)
     2e13     2e13        0     1                 $d.5
-    32fc     32fc      188     1         /tmp/timer-c2ac81.o:(.debug_info)
+    32fc     32fc      188     1         /tmp/timer-e68747.o:(.debug_info)
     32fc     32fc        0     1                 $d.3
-    3484     3484      353     1         /tmp/sbi-e5649b.o:(.debug_info)
+    3484     3484      353     1         /tmp/sbi-b5432b.o:(.debug_info)
     3484     3484        0     1                 $d.3
        0        0      1c8     1 .debug_ranges
-       0        0       18     1         /tmp/commonlibs-6bd574.o:(.debug_ranges)
+       0        0       18     1         /tmp/commonlibs-9931bc.o:(.debug_ranges)
        0        0        0     1                 
        0        0        0     1                 $d.5
-      18       18       48     1         /tmp/kernel-40ee5c.o:(.debug_ranges)
+      18       18       48     1         /tmp/kernel-39f5bb.o:(.debug_ranges)
       18       18        0     1                 
       18       18        0     1                 $d.7
       30       30        0     1                 
       48       48        0     1                 
-      60       60       48     1         /tmp/memory-542322.o:(.debug_ranges)
+      60       60       48     1         /tmp/memory-12321e.o:(.debug_ranges)
       60       60        0     1                 
       60       60        0     1                 $d.6
       78       78        0     1                 
       90       90        0     1                 
-      a8       a8       c0     1         /tmp/process-1c585f.o:(.debug_ranges)
+      a8       a8       c0     1         /tmp/process-4ffcab.o:(.debug_ranges)
       a8       a8        0     1                 
       a8       a8        0     1                 $d.7
       c0       c0        0     1                 
@@ -2489,12 +2489,12 @@
      120      120        0     1                 
      138      138        0     1                 
      150      150        0     1                 
-     168      168       48     1         /tmp/syscall_console-ebe2c0.o:(.debug_ranges)
+     168      168       48     1         /tmp/syscall_console-3e8980.o:(.debug_ranges)
      168      168        0     1                 
      168      168        0     1                 $d.6
      180      180        0     1                 
      198      198        0     1                 
-     1b0      1b0       18     1         /tmp/syscall_process-6f6832.o:(.debug_ranges)
+     1b0      1b0       18     1         /tmp/syscall_process-a4dc2c.o:(.debug_ranges)
      1b0      1b0        0     1                 
      1b0      1b0        0     1                 $d.5
        0        0      a6e     1 .debug_str
@@ -2504,77 +2504,77 @@
        0        0       2b     1 .riscv.attributes
        0        0       2b     1         <internal>:(.riscv.attributes)
        0        0      5c8     4 .debug_frame
-       0        0       94     4         /tmp/commonlibs-6bd574.o:(.debug_frame)
+       0        0       94     4         /tmp/commonlibs-9931bc.o:(.debug_frame)
        0        0        0     1                 
        0        0        0     1                 $d.9
-      94       94       b8     4         /tmp/kernel-40ee5c.o:(.debug_frame)
+      94       94       b8     4         /tmp/kernel-39f5bb.o:(.debug_frame)
       94       94        0     1                 
       94       94        0     1                 $d.11
-     14c      14c       b4     4         /tmp/memory-542322.o:(.debug_frame)
+     14c      14c       b4     4         /tmp/memory-12321e.o:(.debug_frame)
      14c      14c        0     1                 
      14c      14c        0     1                 $d.10
-     200      200      160     4         /tmp/process-1c585f.o:(.debug_frame)
+     200      200      160     4         /tmp/process-4ffcab.o:(.debug_frame)
      200      200        0     1                 
      200      200        0     1                 $d.11
-     360      360       6c     4         /tmp/syscall_console-ebe2c0.o:(.debug_frame)
+     360      360       6c     4         /tmp/syscall_console-3e8980.o:(.debug_frame)
      360      360        0     1                 
      360      360        0     1                 $d.10
-     3cc      3cc       48     4         /tmp/syscall_debug-8adbbb.o:(.debug_frame)
+     3cc      3cc       48     4         /tmp/syscall_debug-b2191b.o:(.debug_frame)
      3cc      3cc        0     1                 
      3cc      3cc        0     1                 $d.7
-     414      414       2c     4         /tmp/syscall_handler-a1708a.o:(.debug_frame)
+     414      414       2c     4         /tmp/syscall_handler-6ab1a2.o:(.debug_frame)
      414      414        0     1                 
      414      414        0     1                 $d.9
-     440      440       4c     4         /tmp/syscall_ipc-08cd24.o:(.debug_frame)
+     440      440       4c     4         /tmp/syscall_ipc-89b95a.o:(.debug_frame)
      440      440        0     1                 
      440      440        0     1                 $d.7
-     48c      48c       88     4         /tmp/syscall_process-6f6832.o:(.debug_frame)
+     48c      48c       88     4         /tmp/syscall_process-a4dc2c.o:(.debug_frame)
      48c      48c        0     1                 
      48c      48c        0     1                 $d.9
-     514      514       2c     4         /tmp/trap_handler-2b6a8d.o:(.debug_frame)
+     514      514       2c     4         /tmp/trap_handler-15fe75.o:(.debug_frame)
      514      514        0     1                 
      514      514        0     1                 $d.9
-     540      540       34     4         /tmp/timer-c2ac81.o:(.debug_frame)
+     540      540       34     4         /tmp/timer-e68747.o:(.debug_frame)
      540      540        0     1                 
      540      540        0     1                 $d.7
-     574      574       54     4         /tmp/sbi-e5649b.o:(.debug_frame)
+     574      574       54     4         /tmp/sbi-b5432b.o:(.debug_frame)
      574      574        0     1                 
      574      574        0     1                 $d.7
        0        0     2895     1 .debug_line
-       0        0      43d     1         /tmp/commonlibs-6bd574.o:(.debug_line)
+       0        0      43d     1         /tmp/commonlibs-9931bc.o:(.debug_line)
        0        0        0     1                 .Lline_table_start0
        0        0        0     1                 $d.10
-     43d      43d      2da     1         /tmp/kernel-40ee5c.o:(.debug_line)
+     43d      43d      2da     1         /tmp/kernel-39f5bb.o:(.debug_line)
      43d      43d        0     1                 .Lline_table_start0
      43d      43d        0     1                 $d.12
-     717      717      5b6     1         /tmp/memory-542322.o:(.debug_line)
+     717      717      5b6     1         /tmp/memory-12321e.o:(.debug_line)
      717      717        0     1                 .Lline_table_start0
      717      717        0     1                 $d.11
-     ccd      ccd      ddc     1         /tmp/process-1c585f.o:(.debug_line)
+     ccd      ccd      ddc     1         /tmp/process-4ffcab.o:(.debug_line)
      ccd      ccd        0     1                 .Lline_table_start0
      ccd      ccd        0     1                 $d.12
-    1aa9     1aa9      268     1         /tmp/syscall_console-ebe2c0.o:(.debug_line)
+    1aa9     1aa9      268     1         /tmp/syscall_console-3e8980.o:(.debug_line)
     1aa9     1aa9        0     1                 .Lline_table_start0
     1aa9     1aa9        0     1                 $d.11
-    1d11     1d11      10d     1         /tmp/syscall_debug-8adbbb.o:(.debug_line)
+    1d11     1d11      10d     1         /tmp/syscall_debug-b2191b.o:(.debug_line)
     1d11     1d11        0     1                 .Lline_table_start0
     1d11     1d11        0     1                 $d.8
-    1e1e     1e1e      10b     1         /tmp/syscall_handler-a1708a.o:(.debug_line)
+    1e1e     1e1e      10b     1         /tmp/syscall_handler-6ab1a2.o:(.debug_line)
     1e1e     1e1e        0     1                 .Lline_table_start0
     1e1e     1e1e        0     1                 $d.10
-    1f29     1f29      18a     1         /tmp/syscall_ipc-08cd24.o:(.debug_line)
+    1f29     1f29      18a     1         /tmp/syscall_ipc-89b95a.o:(.debug_line)
     1f29     1f29        0     1                 .Lline_table_start0
     1f29     1f29        0     1                 $d.8
-    20b3     20b3      3e7     1         /tmp/syscall_process-6f6832.o:(.debug_line)
+    20b3     20b3      3e7     1         /tmp/syscall_process-a4dc2c.o:(.debug_line)
     20b3     20b3        0     1                 .Lline_table_start0
     20b3     20b3        0     1                 $d.10
-    249a     249a      28a     1         /tmp/trap_handler-2b6a8d.o:(.debug_line)
+    249a     249a      28a     1         /tmp/trap_handler-15fe75.o:(.debug_line)
     249a     249a        0     1                 .Lline_table_start0
     249a     249a        0     1                 $d.10
-    2724     2724       cb     1         /tmp/timer-c2ac81.o:(.debug_line)
+    2724     2724       cb     1         /tmp/timer-e68747.o:(.debug_line)
     2724     2724        0     1                 .Lline_table_start0
     2724     2724        0     1                 $d.8
-    27ef     27ef       a6     1         /tmp/sbi-e5649b.o:(.debug_line)
+    27ef     27ef       a6     1         /tmp/sbi-b5432b.o:(.debug_line)
     27ef     27ef        0     1                 .Lline_table_start0
     27ef     27ef        0     1                 $d.8
        0        0     b7d0     4 .symtab

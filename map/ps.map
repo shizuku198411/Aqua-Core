@@ -1,7 +1,7 @@
      VMA      LMA     Size Align Out     In      Symbol
        0        0  1000000     1 . = 0x1000000
  1000000  1000000      392     2 .text
- 1000000  1000000        e     2         /tmp/user-307cfa.o:(.text.start)
+ 1000000  1000000        e     2         /tmp/user-b8e257.o:(.text.start)
  1000000  1000000        0     1                 
  1000000  1000000        0     1                 
  1000000  1000000        0     1                 $x.0
@@ -9,8 +9,8 @@
  1000000  1000000        e     1                 start
  100000e  100000e        0     1                 
  100000e  100000e        0     1                 
- 100000e  100000e        0     2         /tmp/user-307cfa.o:(.text)
- 100000e  100000e       9e     2         /tmp/user_syscall-ce24aa.o:(.text)
+ 100000e  100000e        0     2         /tmp/user-b8e257.o:(.text)
+ 100000e  100000e       9e     2         /tmp/user_syscall-aefb7e.o:(.text)
  100000e  100000e        0     1                 
  100000e  100000e        0     1                 
  100000e  100000e        0     1                 $x.0
@@ -78,7 +78,7 @@
  10000a0  10000a0        0     1                 
  10000a0  10000a0        c     1                 exit
  10000ac  10000ac        0     1                 
- 10000ac  10000ac       94     2         /tmp/main-f65dd1.o:(.text)
+ 10000ac  10000ac       94     2         /tmp/main-0249a7.o:(.text)
  10000ac  10000ac        0     1                 
  10000ac  10000ac        0     1                 
  10000ac  10000ac        0     1                 $x.0
@@ -121,7 +121,7 @@
  1000140  1000140        0     1                 
  1000140  1000140        0     1                 
  1000140  1000140        0     1                 
- 1000140  1000140      252     2         /tmp/commonlibs-736609.o:(.text)
+ 1000140  1000140      252     2         /tmp/commonlibs-1ec0ea.o:(.text)
  1000140  1000140        0     1                 
  1000140  1000140        0     1                 
  1000140  1000140        0     1                 $x.0
@@ -373,7 +373,7 @@
  1000392  1000392        0     1                 
  1000394  1000394       98     4 .rodata
  1000394  1000394       7c     1         <internal>:(.rodata.str1.1)
- 1000410  1000410       1c     4         /tmp/main-f65dd1.o:(.rodata)
+ 1000410  1000410       1c     4         /tmp/main-0249a7.o:(.rodata)
  1000410  1000410        c     1                 .Lswitch.table.main
  1000410  1000410        0     1                 $d.2
  100041c  100041c       10     1                 .Lswitch.table.main.11
@@ -383,22 +383,22 @@
  1010430  1010430        0     1         __stack_top = .
  1010430  1010430        0     1         
        0        0      3df     1 .debug_abbrev
-       0        0       2c     1         /tmp/user-307cfa.o:(.debug_abbrev)
+       0        0       2c     1         /tmp/user-b8e257.o:(.debug_abbrev)
        0        0        0     1                 $d.1
-      2c       2c      159     1         /tmp/user_syscall-ce24aa.o:(.debug_abbrev)
+      2c       2c      159     1         /tmp/user_syscall-aefb7e.o:(.debug_abbrev)
       2c       2c        0     1                 $d.2
-     185      185      132     1         /tmp/main-f65dd1.o:(.debug_abbrev)
+     185      185      132     1         /tmp/main-0249a7.o:(.debug_abbrev)
      185      185        0     1                 $d.4
-     2b7      2b7      128     1         /tmp/commonlibs-736609.o:(.debug_abbrev)
+     2b7      2b7      128     1         /tmp/commonlibs-1ec0ea.o:(.debug_abbrev)
      2b7      2b7        0     1                 $d.3
        0        0      d32     1 .debug_info
-       0        0       38     1         /tmp/user-307cfa.o:(.debug_info)
+       0        0       38     1         /tmp/user-b8e257.o:(.debug_info)
        0        0        0     1                 $d.2
-      38       38      6e2     1         /tmp/user_syscall-ce24aa.o:(.debug_info)
+      38       38      6e2     1         /tmp/user_syscall-aefb7e.o:(.debug_info)
       38       38        0     1                 $d.3
-     71a      71a      29d     1         /tmp/main-f65dd1.o:(.debug_info)
+     71a      71a      29d     1         /tmp/main-0249a7.o:(.debug_info)
      71a      71a        0     1                 $d.5
-     9b7      9b7      37b     1         /tmp/commonlibs-736609.o:(.debug_info)
+     9b7      9b7      37b     1         /tmp/commonlibs-1ec0ea.o:(.debug_info)
      9b7      9b7        0     1                 $d.4
        0        0      30f     1 .debug_str
        0        0      30f     1         <internal>:(.debug_str)
@@ -407,33 +407,33 @@
        0        0       2b     1 .riscv.attributes
        0        0       2b     1         <internal>:(.riscv.attributes)
        0        0      1d8     4 .debug_frame
-       0        0       24     4         /tmp/user-307cfa.o:(.debug_frame)
+       0        0       24     4         /tmp/user-b8e257.o:(.debug_frame)
        0        0        0     1                 
        0        0        0     1                 $d.6
-      24       24       e4     4         /tmp/user_syscall-ce24aa.o:(.debug_frame)
+      24       24       e4     4         /tmp/user_syscall-aefb7e.o:(.debug_frame)
       24       24        0     1                 
       24       24        0     1                 $d.7
-     108      108       3c     4         /tmp/main-f65dd1.o:(.debug_frame)
+     108      108       3c     4         /tmp/main-0249a7.o:(.debug_frame)
      108      108        0     1                 
      108      108        0     1                 $d.10
-     144      144       94     4         /tmp/commonlibs-736609.o:(.debug_frame)
+     144      144       94     4         /tmp/commonlibs-1ec0ea.o:(.debug_frame)
      144      144        0     1                 
      144      144        0     1                 $d.9
        0        0      6c4     1 .debug_line
-       0        0       4c     1         /tmp/user-307cfa.o:(.debug_line)
+       0        0       4c     1         /tmp/user-b8e257.o:(.debug_line)
        0        0        0     1                 .Lline_table_start0
        0        0        0     1                 $d.7
-      4c       4c      12f     1         /tmp/user_syscall-ce24aa.o:(.debug_line)
+      4c       4c      12f     1         /tmp/user_syscall-aefb7e.o:(.debug_line)
       4c       4c        0     1                 .Lline_table_start0
       4c       4c        0     1                 $d.8
-     17b      17b      10c     1         /tmp/main-f65dd1.o:(.debug_line)
+     17b      17b      10c     1         /tmp/main-0249a7.o:(.debug_line)
      17b      17b        0     1                 .Lline_table_start0
      17b      17b        0     1                 $d.11
-     287      287      43d     1         /tmp/commonlibs-736609.o:(.debug_line)
+     287      287      43d     1         /tmp/commonlibs-1ec0ea.o:(.debug_line)
      287      287        0     1                 .Lline_table_start0
      287      287        0     1                 $d.10
        0        0      5b4     1 .debug_loc
-       0        0      1e4     1         /tmp/user_syscall-ce24aa.o:(.debug_loc)
+       0        0      1e4     1         /tmp/user_syscall-aefb7e.o:(.debug_loc)
        0        0        0     1                 
        0        0        0     1                 $d.1
       29       29        0     1                 
@@ -454,13 +454,13 @@
      1ab      1ab        0     1                 
      1be      1be        0     1                 
      1d1      1d1        0     1                 
-     1e4      1e4       7e     1         /tmp/main-f65dd1.o:(.debug_loc)
+     1e4      1e4       7e     1         /tmp/main-0249a7.o:(.debug_loc)
      1e4      1e4        0     1                 
      1e4      1e4        0     1                 $d.3
      21e      21e        0     1                 
      23c      23c        0     1                 
      24f      24f        0     1                 
-     262      262      352     1         /tmp/commonlibs-736609.o:(.debug_loc)
+     262      262      352     1         /tmp/commonlibs-1ec0ea.o:(.debug_loc)
      262      262        0     1                 
      262      262        0     1                 $d.2
      280      280        0     1                 
@@ -483,11 +483,11 @@
      56b      56b        0     1                 
      5a1      5a1        0     1                 
        0        0       48     1 .debug_ranges
-       0        0       30     1         /tmp/main-f65dd1.o:(.debug_ranges)
+       0        0       30     1         /tmp/main-0249a7.o:(.debug_ranges)
        0        0        0     1                 
        0        0        0     1                 $d.6
       18       18        0     1                 
-      30       30       18     1         /tmp/commonlibs-736609.o:(.debug_ranges)
+      30       30       18     1         /tmp/commonlibs-1ec0ea.o:(.debug_ranges)
       30       30        0     1                 
       30       30        0     1                 $d.5
        0        0     21b0     4 .symtab
