@@ -18,5 +18,9 @@
   - `struct process`、作成フロー、タイムスライス付きRR、`kill`/`waitpid`/`ps_info`
 - [VFS / RAMFS / VirtIO Block Storage](./vfs.md)
   - / と /tmp の共存、永続化PFS、virtio-blk、障害原因と対策
+- [RTC / Time Syscall](./rtc.md)
+  - Goldfish RTCドライバ、`gettime` syscall、`date` コマンド、64-bit秒対応
+- [Memory Map](./memory-map.md)
+  - カーネル/ユーザ/MMIO(virtio, RTC)のASCIIメモリマップ
 - [SV32 Paging](./sv32.md)
   - 2段ページテーブル、アドレス計算、マッピング、QEMU/GDB での VA/PA 追跡

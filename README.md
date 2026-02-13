@@ -37,6 +37,9 @@ QEMU + OpenSBI 環境での動作を前提に実装しています。
   - `/` : PFS（virtio-blk上の永続ストレージ）
   - `/tmp` : RAMFS（揮発ストレージ）
   - `ls` / `cat` / `write` / `mkdir` / `rm` などのファイル操作
+- RTC/時刻
+  - Goldfish RTC ドライバによる現在時刻取得
+  - `gettime` syscall と shell `date` コマンド
 - ユーザアプリ
   - `shell`
   - `ipc_rx`（受信待機アプリ）
@@ -54,4 +57,6 @@ QEMU + OpenSBI 環境での動作を前提に実装しています。
 - [Memory / Process](./docs/memory-process.md)
 - [Process Management](./docs/process-management.md)
 - [VFS / RAMFS / VirtIO Block Storage](./docs/vfs.md)
+- [RTC / Time Syscall](./docs/rtc.md)
+- [Memory Map](./docs/memory-map.md)
 - [SV32 Paging](./docs/sv32.md)
