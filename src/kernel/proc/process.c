@@ -266,6 +266,149 @@ struct process *create_process(const void *image, size_t image_size, const char 
 }
 
 
+__attribute__((naked))
+static void fork_child_trap_return(void) {
+    __asm__ __volatile__(
+        // s11: child resume sepc (= parent sepc + 4)
+        // s0 : struct trap_frame *child_tf
+        "csrw sepc, s11\n"
+        "mv gp, s0\n"
+
+        "lw ra,  4 * 0(gp)\n"
+        "lw tp,  4 * 2(gp)\n"
+        "lw t0,  4 * 3(gp)\n"
+        "lw t1,  4 * 4(gp)\n"
+        "lw t2,  4 * 5(gp)\n"
+        "lw t3,  4 * 6(gp)\n"
+        "lw t4,  4 * 7(gp)\n"
+        "lw t5,  4 * 8(gp)\n"
+        "lw t6,  4 * 9(gp)\n"
+        "lw a0,  4 * 10(gp)\n"
+        "lw a1,  4 * 11(gp)\n"
+        "lw a2,  4 * 12(gp)\n"
+        "lw a3,  4 * 13(gp)\n"
+        "lw a4,  4 * 14(gp)\n"
+        "lw a5,  4 * 15(gp)\n"
+        "lw a6,  4 * 16(gp)\n"
+        "lw a7,  4 * 17(gp)\n"
+        "lw s0,  4 * 18(gp)\n"
+        "lw s1,  4 * 19(gp)\n"
+        "lw s2,  4 * 20(gp)\n"
+        "lw s3,  4 * 21(gp)\n"
+        "lw s4,  4 * 22(gp)\n"
+        "lw s5,  4 * 23(gp)\n"
+        "lw s6,  4 * 24(gp)\n"
+        "lw s7,  4 * 25(gp)\n"
+        "lw s8,  4 * 26(gp)\n"
+        "lw s9,  4 * 27(gp)\n"
+        "lw s10, 4 * 28(gp)\n"
+        "lw s11, 4 * 29(gp)\n"
+        "lw sp,  4 * 30(gp)\n"
+        "lw gp,  4 * 1(gp)\n"
+        "sret\n"
+    );
+}
+
+struct process *alloc_proc_slot() {
+    struct process *proc = NULL;
+    reap_exited_processes();
+    int i;
+    for (i = 0; i < PROCS_MAX; i++) {
+        if (procs[i].state == PROC_UNUSED) {
+            proc = &procs[i];
+            break;
+        }
+    }
+    if (!proc) {
+        return NULL;
+    }
+
+    // initialize process
+    proc->pid = i;
+    proc->state = PROC_UNUSED;
+    proc->wait_reason = PROC_WAIT_NONE;
+    proc->wait_pid = -1;
+    proc->parent_pid = 0;
+    return proc;
+}
+
+int process_fork(struct trap_frame *parent_tf) {
+    struct process *child = alloc_proc_slot();
+    if (!child || !parent_tf || !current_proc) goto fail;
+    if (current_proc->state != PROC_RUNNABLE && current_proc->state != PROC_WAITTING) goto fail;
+
+    child->parent_pid = current_proc->pid;
+    strcpy_s(child->name, PROC_NAME_MAX, current_proc->name);
+    child->ipc_has_message = 0;
+    child->ipc_from_pid = 0;
+    child->ipc_message = 0;
+
+    // child page table + user pages copy
+    uint32_t *page_table = (uint32_t *)alloc_pages(1);
+    if (!page_table) goto fail;
+
+    for (paddr_t p = (paddr_t)__kernel_base; p < (paddr_t)__free_ram_end; p += PAGE_SIZE)
+        map_page(page_table, p, p, PAGE_R | PAGE_W | PAGE_X);
+    for (paddr_t p = MMIO_BASE; p < MMIO_END; p += PAGE_SIZE)
+        map_page(page_table, p, p, PAGE_R | PAGE_W);
+    for (paddr_t p = RTC_MMIO_BASE; p < RTC_MMIO_END; p += PAGE_SIZE)
+        map_page(page_table, p, p, PAGE_R | PAGE_W);
+
+    child->page_table = page_table;
+    child->user_pages = current_proc->user_pages;
+
+    for (uint32_t i = 0; i < child->user_pages; i++) {
+        uint32_t vaddr = USER_BASE + i * PAGE_SIZE;
+        uint32_t vpn1 = (vaddr >> 22) & 0x3ff;
+        uint32_t vpn0 = (vaddr >> 12) & 0x3ff;
+
+        uint32_t *pt1 = current_proc->page_table;
+        if ((pt1[vpn1] & PAGE_V) == 0) goto fail;
+        uint32_t *pt0 = (uint32_t *)((pt1[vpn1] >> 10) * PAGE_SIZE);
+        if ((pt0[vpn0] & PAGE_V) == 0) goto fail;
+
+        paddr_t parent_page = (paddr_t)((pt0[vpn0] >> 10) * PAGE_SIZE);
+        paddr_t child_page = alloc_pages(1);
+        if (!child_page) goto fail;
+
+        memcpy((void *)child_page, (const void *)parent_page, PAGE_SIZE);
+
+        uint32_t flags = (pt0[vpn0] & 0x3ff) & ~PAGE_V;
+        map_page(child->page_table, vaddr, child_page, flags);
+    }
+
+    // child trap-return context build
+    uint8_t *kstack_top = &child->stack[sizeof(child->stack)];
+
+    struct trap_frame *child_tf = (struct trap_frame *)(kstack_top - sizeof(struct trap_frame));
+    *child_tf = *parent_tf;
+    child_tf->a0 = 0; // child return value
+
+    // switch_context frame: [sstatus][ra][s0..s11]
+    uint32_t *ksp = (uint32_t *)((uint8_t *)child_tf - (14 * sizeof(uint32_t)));
+    ksp[0]  = READ_CSR(sstatus);                    // saved sstatus
+    ksp[1]  = (uint32_t)fork_child_trap_return;     // ra
+    ksp[2]  = (uint32_t)child_tf;                   // s0 = trap frame ptr
+    ksp[3]  = 0; ksp[4] = 0; ksp[5] = 0; ksp[6] = 0;
+    ksp[7]  = 0; ksp[8] = 0; ksp[9] = 0; ksp[10] = 0;
+    ksp[11] = 0; ksp[12] = 0;
+    ksp[13] = READ_CSR(sepc) + 4;                   // s11 = child resume pc
+
+    child->sp = (uint32_t)ksp;
+
+    // finalize
+    child->state = PROC_RUNNABLE;
+    child->time_slice = SCHED_TIME_SLICE_TICKS;
+    child->run_ticks = 0;
+    child->schedule_count = 0;
+
+    return child->pid;
+
+fail:
+    recycle_process_slot(child);
+    return -1;
+}
+
 void scheduler_on_timer_tick(void) {
     if (!current_proc || current_proc->state != PROC_RUNNABLE || current_proc->pid <= 0) {
         return;

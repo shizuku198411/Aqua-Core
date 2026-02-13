@@ -191,6 +191,24 @@ prompt:
             if (ret == -1) printf("not implemented\n");
             else printf("syscall success\n");
         }
+
+        else if (strcmp(argv[0], "fork_test") == 0 && argc == 1) {
+            int pid = fork();
+            if (pid < 0) {
+                printf("fork failed\n");
+                continue;
+            }
+
+            if (pid == 0) {
+                printf("[child] fork() returned 0\n");
+                shell_cmd_ps();
+                exit();
+            }
+
+            printf("[parent] child pid=%d\n", pid);
+            int waited = waitpid(pid);
+            printf("[parent] waitpid(%d) => %d\n", pid, waited);
+        }
         #endif
 
         else {

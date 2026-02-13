@@ -67,5 +67,6 @@ bool scheduler_should_yield(void);
 int process_ipc_send(int src_pid, int dst_pid, uint32_t message);
 int process_ipc_recv(int self_pid, int *from_pid, uint32_t *message);
 int process_kill(int target_pid);
+int process_fork(struct trap_frame *parent_tf);
 struct process *process_from_trap_frame(struct trap_frame *f);
 void yield(void);
