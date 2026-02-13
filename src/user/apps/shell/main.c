@@ -6,6 +6,7 @@
 #include "commonlibs.h"
 #include "syscall.h"
 #include "user_syscall.h"
+#include "fs.h"
 
 
 void main(void) {
@@ -97,15 +98,98 @@ prompt:
         // push history
         history_push(cmdline);
 
-        char *argv[4];
-        int argc = split_args(cmdline, argv, 4);
+        char *argv[8];
+        int argc = split_args(cmdline, argv, 8);
         if (argc == 0) {
             goto prompt;
         }
 
-        // hello
-        else if (strcmp(argv[0], "hello") == 0) {
-            printf("Hello World from AquaCore!\n");
+        // mkdir
+        else if (strcmp(argv[0], "mkdir") == 0 && argc == 2) {
+            if (fs_mkdir(argv[1]) < 0) {
+                printf("mkdir failed\n");
+            }
+        }
+
+        // rmdir
+        else if (strcmp(argv[0], "rmdir") == 0 && argc == 2) {
+            if (fs_rmdir(argv[1]) < 0) {
+                printf("rmdir failed\n");
+            }
+        }
+
+        // touch
+        else if (strcmp(argv[0], "touch") == 0 && argc == 2) {
+            int fd = fs_open(argv[1], O_CREAT | O_WRONLY);
+            if (fd < 0) {
+                printf("touch failed\n");
+            } else {
+                fs_close(fd);
+            }
+        }
+
+        // rm
+        else if (strcmp(argv[0], "rm") == 0 && argc == 2) {
+            if (fs_unlink(argv[1]) < 0) {
+                printf("rm failed\n");
+            }
+        }
+
+        // write
+        else if (strcmp(argv[0], "write") == 0 && argc == 3) {
+            int fd = fs_open(argv[1], O_CREAT | O_WRONLY | O_TRUNC);
+            if (fd < 0) {
+                printf("open failed\n");
+            } else {
+                int n = str_len(argv[2]);
+                int w = fs_write(fd, argv[2], n);
+                if (w < 0) {
+                    printf("write failed\n");
+                }
+                fs_close(fd);
+            }
+        }
+
+        // cat
+        else if (strcmp(argv[0], "cat") == 0 && argc == 2) {
+            int fd = fs_open(argv[1], O_RDONLY);
+            if (fd < 0) {
+                printf("cat failed\n");
+            } else {
+                char buf[64];
+                while (1) {
+                    int n = fs_read(fd, buf, sizeof(buf) - 1);
+                    if (n <= 0) {
+                        break;
+                    }
+                    buf[n] = '\0';
+                    printf("%s", buf);
+                }
+                printf("\n");
+                fs_close(fd);
+            }
+        }
+
+        // ls
+        else if (strcmp(argv[0], "ls") == 0 && (argc == 1 || argc == 2)) {
+            const char *path = (argc == 2) ? argv[1] : "/";
+            struct fs_dirent ent;
+
+            printf("TYPE\tSIZE\tNAME\n");
+            for (int i = 0;; i++) {
+                if (fs_readdir(path, i, &ent) < 0) {
+                    break;
+                }
+                printf("%s\t%d\t",
+                       ent.type == FS_TYPE_DIR ? "d" : "f",
+                       ent.size
+                );
+                if (ent.type == FS_TYPE_DIR) {
+                    printf("%s/\n", ent.name);
+                } else {
+                    printf("%s\n", ent.name);
+                }
+            }
         }
 
         // kernel_info
@@ -124,6 +208,8 @@ prompt:
                 printf("kernel stack  : %d bytes/proc\n", info.kernel_stack_bytes);
                 printf("time slice    : %d ticks\n", info.time_slice_ticks);
                 printf("timer interval: %d ms\n", info.timer_interval_ms);
+                printf("ramfs node max: %d\n", info.ramfs_node_max);
+                printf("ramfs size max: %d\n", info.ramfs_size_max);
             }
         }
 

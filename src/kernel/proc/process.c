@@ -3,6 +3,7 @@
 #include "kernel.h"
 #include "memory.h"
 #include "process.h"
+#include "fs_internal.h"
 
 
 extern char __kernel_base[], __free_ram_end[];
@@ -96,6 +97,7 @@ static void recycle_process_slot(struct process *proc) {
         return;
     }
 
+    fs_on_process_recycle(proc->pid);
     free_process_memory(proc);
     proc->state = PROC_UNUSED;
     set_process_name(proc, NULL);
@@ -220,6 +222,11 @@ struct process *create_process(const void *image, size_t image_size, const char 
          paddr < (paddr_t) __free_ram_end;
          paddr += PAGE_SIZE) {
         map_page(page_table, paddr, paddr, PAGE_R | PAGE_W | PAGE_X);
+    }
+
+    // Map MMIO region for device access while running in process page table.
+    for (paddr_t paddr = MMIO_BASE; paddr < MMIO_END; paddr += PAGE_SIZE) {
+        map_page(page_table, paddr, paddr, PAGE_R | PAGE_W);
     }
 
     uint32_t user_pages = (image_size + PAGE_SIZE - 1) / PAGE_SIZE;
@@ -499,4 +506,22 @@ int process_kill(int target_pid) {
     target->parent_pid = 0;
     recycle_process_slot(target);
     return killed_pid;
+}
+
+struct process *process_from_trap_frame(struct trap_frame *f) {
+    if (!f) {
+        return NULL;
+    }
+
+    uint32_t addr = (uint32_t) f;
+    for (int i = 0; i < PROCS_MAX; i++) {
+        struct process *proc = &procs[i];
+        uint32_t stack_base = (uint32_t) &proc->stack[0];
+        uint32_t stack_end = (uint32_t) (&proc->stack[sizeof(proc->stack)]);
+        if (addr >= stack_base && addr < stack_end) {
+            return proc;
+        }
+    }
+
+    return NULL;
 }

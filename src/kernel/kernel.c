@@ -6,6 +6,8 @@
 #include "memory.h"
 #include "process.h"
 #include "sbi.h"
+#include "fs.h"
+#include "fs_internal.h"
 
 
 extern char __bss[], __bss_end[], __stack_top[];
@@ -15,29 +17,6 @@ extern struct process *idle_proc;
 extern struct process *init_proc;
 
 static uint32_t kernel_total_pages;
-
-void kernel_get_info(struct kernel_info *out) {
-    if (!out) {
-        return;
-    }
-
-    for (int i = 0; i < KERNEL_VERSION_MAX; i++) {
-        out->version[i] = '\0';
-    }
-    for (int i = 0; i < KERNEL_VERSION_MAX - 1 && KERNEL_VERSION[i] != '\0'; i++) {
-        out->version[i] = KERNEL_VERSION[i];
-    }
-
-    out->total_pages = kernel_total_pages;
-    out->page_size = PAGE_SIZE;
-    out->kernel_base = KERNEL_BASE;
-    out->user_base = USER_BASE;
-    out->proc_max = PROCS_MAX;
-    out->kernel_stack_bytes = (uint32_t) sizeof(((struct process *) 0)->stack);
-    out->time_slice_ticks = SCHED_TIME_SLICE_TICKS;
-    out->timer_interval_ms = TIMER_INTERVAL / 10000;
-}
-
 
 __attribute__((naked))
 __attribute__((aligned(4)))
@@ -53,6 +32,10 @@ void kernel_entry(void) {
         "1:\n"
         "csrw sscratch, sp\n"
         "2:\n"
+
+        // Always run trap handler with interrupts disabled to avoid nested
+        // timer traps corrupting the current kernel stack/proc fields.
+        "csrc sstatus, 2\n"
 
         "addi sp, sp, -4 * 31\n"
         "sw ra,  4 * 0(sp)\n"
@@ -183,10 +166,15 @@ void kernel_bootstrap(void) {
     WRITE_CSR(sscratch, kernel_sp);
 
     // enable supervisor timer interrupt
-    printf("[*] enable sv timer interrupt...");
+    printf("[*] enable timer interrupt...");
     enable_timer_interrupt();
     timer_set_next();
     printf("done.\n");
+
+    // initialize in-memory filesystem
+    printf("[*] initialize filesystem...");
+    fs_init();
+    printf("    done.\n");
 
     // create idle process
     printf("[*] setup process...");
@@ -206,10 +194,35 @@ void kernel_bootstrap(void) {
     printf("     kernel stack  : %d bytes/proc\n", (int) sizeof(procs[0].stack));
     printf("     time slice    : %d ticks\n", SCHED_TIME_SLICE_TICKS);
     printf("     timer interval: %d ms\n", (TIMER_INTERVAL / 10000));
+    printf("     ramfs node max: %d\n", FS_MAX_NODES);
+    printf("     ramfs size max: %d\n", FS_FILE_MAX_SIZE);
 
     printf("[*] kernel bootstrap completed.\n");
 }
 
+void kernel_get_info(struct kernel_info *out) {
+    if (!out) {
+        return;
+    }
+
+    for (int i = 0; i < KERNEL_VERSION_MAX; i++) {
+        out->version[i] = '\0';
+    }
+    for (int i = 0; i < KERNEL_VERSION_MAX - 1 && KERNEL_VERSION[i] != '\0'; i++) {
+        out->version[i] = KERNEL_VERSION[i];
+    }
+
+    out->total_pages = kernel_total_pages;
+    out->page_size = PAGE_SIZE;
+    out->kernel_base = KERNEL_BASE;
+    out->user_base = USER_BASE;
+    out->proc_max = PROCS_MAX;
+    out->kernel_stack_bytes = (uint32_t) sizeof(((struct process *) 0)->stack);
+    out->time_slice_ticks = SCHED_TIME_SLICE_TICKS;
+    out->timer_interval_ms = TIMER_INTERVAL / 10000;
+    out->ramfs_node_max = FS_MAX_NODES;
+    out->ramfs_size_max = FS_FILE_MAX_SIZE;
+}
 
 void kernel_main(void) {
     kernel_bootstrap();

@@ -158,13 +158,3 @@ kill 実体は `process_kill(int target_pid)` (`src/kernel/proc/process.c`)。
 - `name[PROC_NAME_MAX]`
 
 `syscall_handle_ps` は `sstatus.SUM` を一時有効化し、ユーザポインタへ書き戻す。
-
-## 8. 実装上の注意点
-
-- `pid` を配列 index とみなして直接 `procs[pid]` に触れない
-- `create_process()` は `NULL` を返し得るため呼び出し側でエラー処理する
-- `EXITED` と `UNUSED` の意味を分離する
-  - `EXITED`: 終了済みだが回収前
-  - `UNUSED`: スロット再利用可能
-- trap入口と `sscratch` の整合を崩すと、`procs[]` ヘッダ破壊につながる
-- 非self kill は `PROC_EXITED` 化後に即時回収、self kill は `yield()` で離脱する

@@ -14,6 +14,14 @@
 #define SYSCALL_SPAWN       SYSCALL_CLONE
 #define SYSCALL_KILL        10
 #define SYSCALL_KERNEL_INFO 11
+#define SYSCALL_OPEN        12
+#define SYSCALL_CLOSE       13
+#define SYSCALL_READ        14
+#define SYSCALL_WRITE       15
+#define SYSCALL_MKDIR       16
+#define SYSCALL_READDIR     17
+#define SYSCALL_UNLINK      18
+#define SYSCALL_RMDIR       19
 
 #define APP_ID_SHELL        1
 #define APP_ID_PS           2

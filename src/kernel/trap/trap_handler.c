@@ -12,6 +12,16 @@ void handle_trap(struct trap_frame *f) {
     uint32_t scause  = READ_CSR(scause);
     uint32_t stval   = READ_CSR(stval);
     uint32_t user_pc = READ_CSR(sepc);
+    uint32_t sstatus = READ_CSR(sstatus);
+    bool from_user = (sstatus & (1u << 8)) == 0;
+    struct process *owner = NULL;
+
+    if (from_user) {
+        owner = process_from_trap_frame(f);
+        if (owner) {
+            current_proc = owner;
+        }
+    }
 
     switch (scause) {
         // instruction address misaligned
@@ -78,6 +88,8 @@ void handle_trap(struct trap_frame *f) {
             }
             if (current_proc && current_proc->pid > 0) {
                 WRITE_CSR(sscratch, (uint32_t) &current_proc->stack[sizeof(current_proc->stack)]);
+            } else if (owner) {
+                WRITE_CSR(sscratch, (uint32_t) &owner->stack[sizeof(owner->stack)]);
             }
             return;
 
@@ -87,6 +99,8 @@ void handle_trap(struct trap_frame *f) {
 
     if (current_proc && current_proc->pid > 0) {
         WRITE_CSR(sscratch, (uint32_t) &current_proc->stack[sizeof(current_proc->stack)]);
+    } else if (owner) {
+        WRITE_CSR(sscratch, (uint32_t) &owner->stack[sizeof(owner->stack)]);
     }
     WRITE_CSR(sepc, user_pc);
 }

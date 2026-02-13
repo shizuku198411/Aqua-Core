@@ -49,6 +49,38 @@ void handle_syscall(struct trap_frame *f) {
             syscall_handle_kernel_info(f);
             break;
 
+        case SYSCALL_OPEN:
+            syscall_handle_open(f);
+            break;
+
+        case SYSCALL_CLOSE:
+            syscall_handle_close(f);
+            break;
+
+        case SYSCALL_READ:
+            syscall_handle_read(f);
+            break;
+
+        case SYSCALL_WRITE:
+            syscall_handle_write(f);
+            break;
+
+        case SYSCALL_MKDIR:
+            syscall_handle_mkdir(f);
+            break;
+
+        case SYSCALL_READDIR:
+            syscall_handle_readdir(f);
+            break;
+
+        case SYSCALL_UNLINK:
+            syscall_handle_unlink(f);
+            break;
+
+        case SYSCALL_RMDIR:
+            syscall_handle_rmdir(f);
+            break;
+
         default:
             PANIC("undefined system call");
     }

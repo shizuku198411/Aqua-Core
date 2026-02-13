@@ -1,5 +1,6 @@
 #include "process.h"
 #include "syscall.h"
+#include "fs.h"
 
 
 int syscall(int sysno, int arg0, int arg1, int arg2) {
@@ -68,4 +69,37 @@ __attribute__((noreturn))
 void exit(void) {
     syscall(SYSCALL_EXIT, 0, 0, 0);
     __builtin_unreachable();
+}
+
+
+int fs_open(const char *path, int flags) {
+    return syscall(SYSCALL_OPEN, (int) path, flags, 0);
+}
+
+int fs_close(int fd) {
+    return syscall(SYSCALL_CLOSE, fd, 0, 0);
+}
+
+int fs_read(int fd, void *buf, int size) {
+    return syscall(SYSCALL_READ, fd, (int) buf, size);
+}
+
+int fs_write(int fd, const void *buf, int size) {
+    return syscall(SYSCALL_WRITE, fd, (int) buf, size);
+}
+
+int fs_mkdir(const char *path) {
+    return syscall(SYSCALL_MKDIR, (int) path, 0, 0);
+}
+
+int fs_readdir(const char *path, int index, struct fs_dirent *out) {
+    return syscall(SYSCALL_READDIR, (int) path, index, (int) out);
+}
+
+int fs_unlink(const char *path) {
+    return syscall(SYSCALL_UNLINK, (int) path, 0, 0);
+}
+
+int fs_rmdir(const char *path) {
+    return syscall(SYSCALL_RMDIR, (int) path, 0, 0);
 }

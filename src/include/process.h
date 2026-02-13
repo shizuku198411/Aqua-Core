@@ -48,6 +48,8 @@ struct ps_info {
     char name[PROC_NAME_MAX];
 };
 
+struct trap_frame;
+
 
 extern struct process procs[PROCS_MAX];
 extern struct process *current_proc;
@@ -65,4 +67,5 @@ bool scheduler_should_yield(void);
 int process_ipc_send(int src_pid, int dst_pid, uint32_t message);
 int process_ipc_recv(int self_pid, int *from_pid, uint32_t *message);
 int process_kill(int target_pid);
+struct process *process_from_trap_frame(struct trap_frame *f);
 void yield(void);

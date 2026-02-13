@@ -89,6 +89,8 @@ struct trap_frame {
 
 #define KERNEL_BASE 0x80200000
 #define USER_BASE 0x1000000
+#define MMIO_BASE 0x10000000
+#define MMIO_END  0x10010000
 #define SSTATUS_SPIE    (1 << 5)
 #define KERNEL_VERSION_MAX 16
 
@@ -102,6 +104,8 @@ struct kernel_info {
     uint32_t kernel_stack_bytes;
     uint32_t time_slice_ticks;
     uint32_t timer_interval_ms;
+    uint32_t ramfs_node_max;
+    uint32_t ramfs_size_max;
 };
 
 void user_entry(void);
