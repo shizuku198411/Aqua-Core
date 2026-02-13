@@ -2,65 +2,21 @@
     application#1: Commandline Shell
 */
 
+#include "shell.h"
 #include "commonlibs.h"
 #include "syscall.h"
 #include "user_syscall.h"
 
-static int split_args(char *line, char **argv, int argv_max) {
-    int argc = 0;
-    int in_token = 0;
-
-    for (int i = 0; line[i] != '\0'; i++) {
-        if (line[i] == ' ' || line[i] == '\t') {
-            line[i] = '\0';
-            in_token = 0;
-            continue;
-        }
-
-        if (!in_token) {
-            if (argc < argv_max) {
-                argv[argc++] = &line[i];
-            }
-            in_token = 1;
-        }
-    }
-
-    return argc;
-}
-
-static int parse_int(const char *s, int *out) {
-    int value = 0;
-    if (!s || *s == '\0') {
-        return -1;
-    }
-
-    while (*s) {
-        if (*s < '0' || *s > '9') {
-            return -1;
-        }
-        value = value * 10 + (*s - '0');
-        s++;
-    }
-
-    *out = value;
-    return 0;
-}
-
-static void discard_line_tail(void) {
-    while (1) {
-        char ch = getchar();
-        if (ch == '\r' || ch == '\n') {
-            return;
-        }
-    }
-}
 
 void main(void) {
     while (1) {
 prompt:
         printf("\033[34maqua-core\033[0m:$ ");
-        char cmdline[64];
+        char cmdline[CMDLINE_MAX];
+        char draft[CMDLINE_MAX];
         int len = 0;
+        int draft_len = 0;
+        int history_cursor = -1; // -1: not browsing, 0..history_size()-1: browsing
         for (;;) {
             char ch = getchar();
 
@@ -68,6 +24,56 @@ prompt:
                 printf("\n");
                 cmdline[len] = '\0';
                 break;
+            }
+
+            // Arrow keys: ESC [ A(up), ESC [ B(down)
+            if (ch == 0x1b) {
+                char c1 = getchar();
+                char c2 = getchar();
+                if (c1 == '[' && (c2 == 'A' || c2 == 'B')) {
+                    int hsize = history_size();
+                    if (hsize <= 0) {
+                        continue;
+                    }
+
+                    if (c2 == 'A') { // up: older
+                        if (history_cursor == -1) {
+                            for (int i = 0; i < len; i++) {
+                                draft[i] = cmdline[i];
+                            }
+                            draft[len] = '\0';
+                            draft_len = len;
+                            history_cursor = hsize - 1;
+                        } else if (history_cursor > 0) {
+                            history_cursor--;
+                        }
+                    } else { // down: newer
+                        if (history_cursor == -1) {
+                            continue;
+                        }
+
+                        if (history_cursor < hsize - 1) {
+                            history_cursor++;
+                        } else {
+                            // back to draft
+                            history_cursor = -1;
+                            for (int i = 0; i < draft_len; i++) {
+                                cmdline[i] = draft[i];
+                            }
+                            cmdline[draft_len] = '\0';
+                            len = draft_len;
+                            redraw_cmdline(cmdline);
+                            continue;
+                        }
+                    }
+
+                    if (history_cursor >= 0) {
+                        history_get(history_cursor, cmdline, CMDLINE_MAX);
+                        len = str_len(cmdline);
+                        redraw_cmdline(cmdline);
+                    }
+                }
+                continue;
             }
 
             // Handle both BS (0x08) and DEL (0x7f) as erase one character.
@@ -81,13 +87,15 @@ prompt:
 
             if (len == sizeof(cmdline) - 1) {
                 printf("\ncommand too long\n");
-                discard_line_tail();
                 goto prompt;
             }
 
             cmdline[len++] = ch;
             putchar(ch);
         }
+
+        // push history
+        history_push(cmdline);
 
         char *argv[4];
         int argc = split_args(cmdline, argv, 4);
@@ -99,7 +107,7 @@ prompt:
         else if (strcmp(argv[0], "hello") == 0) {
             printf("Hello World from AquaCore!\n");
         }
-        
+
         // kernel_info
         else if (strcmp(argv[0], "kernel_info") == 0 && argc == 1) {
             struct kernel_info info;
@@ -117,6 +125,11 @@ prompt:
                 printf("time slice    : %d ticks\n", info.time_slice_ticks);
                 printf("timer interval: %d ms\n", info.timer_interval_ms);
             }
+        }
+
+        // history
+        else if (strcmp(argv[0], "history") == 0) {
+            history_print();
         }
 
         // ps
