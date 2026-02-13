@@ -11,6 +11,30 @@ QEMU + OpenSBI 環境での動作を前提に実装しています。
   <img src="docs/assets/aquacore_terminal.png" alt="terminal">
 </p>
 
+## ビルド/起動
+### BIOSダウンロード
+以下リンクよりルート直下にBIOS(OpenSBI)をダウンロード、本リポジトリのルート直下に設置してください。
+```bash
+curl -LO https://github.com/qemu/qemu/blob/v8.0.4/pc-bios/opensbi-riscv32-generic-fw_dynamic.bin
+```
+
+### Makefile
+```bash
+# build (kernel + user apps)
+make
+
+# run on qemu (create ./bin/disk.img when missing)
+make run
+```
+
+主要ターゲット:
+
+- `make` or `make build` : ビルド
+- `make start`: QEMU起動
+- `make run` : ビルド + QEMU起動
+- `make clean` : 生成物削除（disk imageは残す）
+- `make distclean` : 生成物 + `./bin/disk.img` 削除
+
 ## 現在の実装機能
 
 - ブートストラップ
