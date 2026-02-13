@@ -11,3 +11,5 @@ void history_push(const char *line);
 void history_print(void);
 int history_size(void);
 int history_get(int pos, char *out, int out_max);
+char *proc_state_to_string(int state);
+char *proc_wait_reason_to_string(int wait_reason);

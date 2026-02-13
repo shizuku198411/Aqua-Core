@@ -24,8 +24,7 @@
 #define SYSCALL_RMDIR       19
 
 #define APP_ID_SHELL        1
-#define APP_ID_PS           2
-#define APP_ID_IPC_RX       3
+#define APP_ID_IPC_RX       2
 
 void handle_syscall(struct trap_frame *f);
 void poll_console_input(void);

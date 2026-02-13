@@ -35,7 +35,6 @@ QEMU + OpenSBI 環境での動作を前提に実装しています。
   - `ipc_send` / `ipc_recv` による送受信
 - ユーザアプリ
   - `shell`
-  - `ps`
   - `ipc_rx`（受信待機アプリ）
 - カーネル終了
   - init プロセス終了時の shutdown 処理

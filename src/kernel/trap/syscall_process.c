@@ -8,7 +8,6 @@
 extern struct process *current_proc;
 extern struct process *init_proc;
 extern char _binary___bin_shell_bin_start[], _binary___bin_shell_bin_size[];
-extern char _binary___bin_ps_bin_start[], _binary___bin_ps_bin_size[];
 extern char _binary___bin_ipc_rx_bin_start[], _binary___bin_ipc_rx_bin_size[];
 
 static void write_user_ps_info(struct ps_info *user_ptr, const struct process *proc) {
@@ -68,11 +67,6 @@ void syscall_handle_clone(struct trap_frame *f) {
             image = _binary___bin_shell_bin_start;
             image_size = (size_t) _binary___bin_shell_bin_size;
             name = "shell";
-            break;
-        case APP_ID_PS:
-            image = _binary___bin_ps_bin_start;
-            image_size = (size_t) _binary___bin_ps_bin_size;
-            name = "ps";
             break;
         case APP_ID_IPC_RX:
             image = _binary___bin_ipc_rx_bin_start;

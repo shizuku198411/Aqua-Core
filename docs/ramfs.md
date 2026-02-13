@@ -150,13 +150,6 @@ close:
 5. ルートFSに `/tmp` ノードがなければ作成
 6. `vfs_mount("/tmp", &nodefs_ops, &tmpfs)`
 
-ポイント:
-
-- `/tmp` ディレクトリエントリは rootfs 側にも存在させる
-  - `ls /` で `tmp/` が見えるため
-- 実データI/Oは `/tmp` mount を通って tmpfs に到達
-  - rootfs上の `/tmp` ノード自体に書き込むわけではない
-
 内部構造:
 
 - `struct fs_node nodes[FS_MAX_NODES]`

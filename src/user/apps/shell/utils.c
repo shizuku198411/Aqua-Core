@@ -1,5 +1,36 @@
 #include "shell.h"
 #include "commonlibs.h"
+#include "process.h"
+
+char *proc_state_to_string(int state) {
+    switch (state) {
+        case PROC_RUNNABLE:
+            return "RUN";
+        case PROC_WAITTING:
+            return "WAIT";
+        case PROC_EXITED:
+            return "EXIT";
+        case PROC_UNUSED:
+        default:
+            return "UNUSED";
+    }
+}
+
+char *proc_wait_reason_to_string(int wait_reason) {
+    switch (wait_reason) {
+        case PROC_WAIT_CHILD_EXIT:
+            return "CHILD_EXIT";
+        case PROC_WAIT_CONSOLE_INPUT:
+            return "CONSOLE_INPUT";
+        case PROC_WAIT_IPC_RECV:
+            return "IPC_RECV";
+        case PROC_WAIT_NONE:
+            return "";
+        default:
+            return "UNKNOWN";
+    }
+}
+
 
 int split_args(char *line, char **argv, int argv_max) {
     int argc = 0;
