@@ -23,6 +23,9 @@
 #define SYSCALL_UNLINK      18
 #define SYSCALL_RMDIR       19
 #define SYSCALL_GETTIME     20
+#define SYSCALL_FORK        21
+#define SYSCALL_EXEC        22
+#define SYSCALL_DUP2        23
 
 #define APP_ID_SHELL        1
 #define APP_ID_IPC_RX       2

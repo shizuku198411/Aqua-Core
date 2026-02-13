@@ -14,7 +14,8 @@ CC := clang
 OBJCOPY := llvm-objcopy
 QEMU := qemu-system-riscv32
 
-CFLAGS := -std=c11 -O2 -g3 -Wall -Wextra --target=riscv32-unknown-elf -fuse-ld=lld -fno-stack-protector -ffreestanding -nostdlib -Isrc/include -Isrc/user/include
+CPPFLAGS ?=
+CFLAGS := ${CPPFLAGS} -std=c11 -O2 -g3 -Wall -Wextra --target=riscv32-unknown-elf -fuse-ld=lld -fno-stack-protector -ffreestanding -nostdlib -Isrc/include -Isrc/user/include
 QEMU_OPT := -machine virt -bios default -nographic -serial mon:stdio --no-reboot -global virtio-mmio.force-legacy=false
 
 DISK_IMG := $(BIN_DIR)/disk.img
@@ -28,11 +29,17 @@ IPC_RX_ELF := $(BIN_DIR)/ipc_rx.elf
 IPC_RX_BIN := $(BIN_DIR)/ipc_rx.bin
 IPC_RX_OBJ := $(OBJ_DIR)/ipc_rx.bin.o
 
-.PHONY: all build run start clean distclean dirs disk
+.PHONY: all build run start debug release run-debug run-release start-debug start-release clean distclean dirs disk
 
 all: build
 
 build: $(KERNEL_ELF)
+
+debug: clean
+	$(MAKE) build CPPFLAGS=-DDEBUG
+
+release: clean
+	$(MAKE) build CPPFLAGS=
 
 dirs:
 	mkdir -p $(MAP_DIR) $(OBJ_DIR) $(BIN_DIR)
@@ -81,11 +88,23 @@ run: $(KERNEL_ELF) disk
 		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
 		-kernel $(KERNEL_ELF)
 
+run-debug:
+	$(MAKE) run CPPFLAGS=-DDEBUG
+
+run-release:
+	$(MAKE) run CPPFLAGS=
+
 start: disk
 	$(QEMU) $(QEMU_OPT) \
 		-drive file=$(DISK_IMG),if=none,format=raw,id=hd0 \
 		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
 		-kernel $(KERNEL_ELF)
+
+start-debug:
+	$(MAKE) start CPPFLAGS=-DDEBUG
+
+start-release:
+	$(MAKE) start CPPFLAGS=
 
 clean:
 	rm -f $(KERNEL_ELF) $(SHELL_ELF) $(SHELL_BIN) $(SHELL_OBJ) $(IPC_RX_ELF) $(IPC_RX_BIN) $(IPC_RX_OBJ)

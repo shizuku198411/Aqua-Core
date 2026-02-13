@@ -25,4 +25,7 @@ int fs_readdir(const char *path, int index, struct fs_dirent *out);
 int fs_unlink(const char *path);
 int fs_rmdir(const char *path);
 int gettime(struct time_spec *out);
+int fork(void);
+int exec(int app_id);
+int dup2(int fd1, int fd2);
 __attribute__((noreturn)) void exit(void);

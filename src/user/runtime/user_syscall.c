@@ -108,3 +108,15 @@ int fs_rmdir(const char *path) {
 int gettime(struct time_spec *out) {
     return syscall(SYSCALL_GETTIME, (int) out, 0, 0);
 }
+
+int fork(void) {
+    return syscall(SYSCALL_FORK, 0, 0, 0);
+}
+
+int exec(int app_id) {
+    return syscall(SYSCALL_EXEC, app_id, 0, 0);
+}
+
+int dup2(int fd1, int fd2) {
+    return syscall(SYSCALL_DUP2, fd1, fd2, 0);
+}
