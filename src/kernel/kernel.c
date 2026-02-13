@@ -157,7 +157,6 @@ void kernel_bootstrap(void) {
     memset(__bss, 0, (size_t) __bss_end - (size_t) __bss);
     printf("OK\n");
     kernel_total_pages = memory_init();
-    printf("    OK\n");
 
     // set trap handler to stvec registry
     printf("[*] initialize trapvector...");
@@ -177,12 +176,10 @@ void kernel_bootstrap(void) {
     printf("     [timer] set next timer...");
     timer_set_next();
     printf("OK\n");
-    printf("    OK\n");
 
     // initialize in-memory filesystem
     printf("[*] initialize filesystem...");
     fs_init();
-    printf("    OK\n");
 
     // init rtc
     printf("[*] initialize real-time clock...");

@@ -57,6 +57,7 @@
 #define VQ_NUM 8
 #define VQ_ALIGN 4096
 #define VQ_BYTES (2 * VQ_ALIGN)
+#define VIRTIO_IO_SPIN_LIMIT 30000000u
 
 struct virtq_desc {
     uint64_t addr;
@@ -99,8 +100,12 @@ static struct virtq_avail *vq_avail;
 static volatile struct virtq_used *vq_used;
 static uint16_t vq_last_used_idx;
 static struct virtio_blk_req_hdr req_hdr;
-static uint8_t req_status;
+static volatile uint8_t req_status;
 static int blk_log_once;
+static int last_io_timed_out;
+static int blk_recovering;
+
+static int virtio_do_io(uint32_t type, uint32_t block_index, void *buf);
 
 static inline void fence_rw_rw(void) {
     __asm__ __volatile__("fence rw, rw" ::: "memory");
@@ -177,7 +182,86 @@ static int virtio_setup_queue(void) {
     return 0;
 }
 
+static int virtio_configure_device(void) {
+    mmio_write(VIRTIO_MMIO_STATUS, 0);
+    mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_ACKNOWLEDGE);
+    mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_ACKNOWLEDGE | VIRTIO_STATUS_DRIVER);
+
+    mmio_write(VIRTIO_MMIO_DEVICE_FEATURES_SEL, 0);
+    uint32_t features0 = mmio_read(VIRTIO_MMIO_DEVICE_FEATURES);
+    mmio_write(VIRTIO_MMIO_DEVICE_FEATURES_SEL, 1);
+    uint32_t features1 = mmio_read(VIRTIO_MMIO_DEVICE_FEATURES);
+    (void) features0;
+
+    if ((features1 & (1u << (VIRTIO_F_VERSION_1 - 32))) == 0) {
+        return -1;
+    }
+
+    mmio_write(VIRTIO_MMIO_DRIVER_FEATURES_SEL, 0);
+    mmio_write(VIRTIO_MMIO_DRIVER_FEATURES, 0);
+    mmio_write(VIRTIO_MMIO_DRIVER_FEATURES_SEL, 1);
+    mmio_write(VIRTIO_MMIO_DRIVER_FEATURES, (1u << (VIRTIO_F_VERSION_1 - 32)));
+
+    uint32_t status = mmio_read(VIRTIO_MMIO_STATUS);
+    status |= VIRTIO_STATUS_FEATURES_OK;
+    mmio_write(VIRTIO_MMIO_STATUS, status);
+    if ((mmio_read(VIRTIO_MMIO_STATUS) & VIRTIO_STATUS_FEATURES_OK) == 0) {
+        return -1;
+    }
+
+    if (virtio_setup_queue() < 0) {
+        return -1;
+    }
+
+    mmio_write(VIRTIO_MMIO_STATUS,
+               VIRTIO_STATUS_ACKNOWLEDGE |
+               VIRTIO_STATUS_DRIVER |
+               VIRTIO_STATUS_DRIVER_OK);
+    return 0;
+}
+
+static int virtio_read_capacity(void) {
+    uint32_t cap_lo = mmio_read(VIRTIO_MMIO_CONFIG + 0x00);
+    uint32_t cap_hi = mmio_read(VIRTIO_MMIO_CONFIG + 0x04);
+    uint64_t cap = ((uint64_t) cap_hi << 32) | cap_lo;
+    if (cap == 0) {
+        return -1;
+    }
+    if (cap > 0xffffffffu) {
+        capacity_blocks = 0xffffffffu;
+    } else {
+        capacity_blocks = (uint32_t) cap;
+    }
+    return 0;
+}
+
+static int virtio_recover_from_timeout(void) {
+    if (blk_recovering) {
+        return -1;
+    }
+    blk_recovering = 1;
+
+    virtio_setup_vq_layout();
+    if (virtio_configure_device() < 0 || virtio_read_capacity() < 0) {
+        mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_FAILED);
+        blk_recovering = 0;
+        return -1;
+    }
+
+    uint8_t probe[BLOCKDEV_BLOCK_SIZE];
+    if (virtio_do_io(VIRTIO_BLK_T_IN, 0, probe) < 0) {
+        mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_FAILED);
+        blk_recovering = 0;
+        return -1;
+    }
+
+    blk_recovering = 0;
+    return 0;
+}
+
 static int virtio_do_io(uint32_t type, uint32_t block_index, void *buf) {
+    last_io_timed_out = 0;
+
     req_hdr.type = type;
     req_hdr.reserved = 0;
     req_hdr.sector = block_index;
@@ -212,10 +296,12 @@ static int virtio_do_io(uint32_t type, uint32_t block_index, void *buf) {
     uint32_t spin = 0;
     while (vq_used->idx == vq_last_used_idx) {
         __asm__ __volatile__("nop");
-        if (++spin > 3000000u) {
+        if (++spin > VIRTIO_IO_SPIN_LIMIT) {
+            last_io_timed_out = 1;
             if (!blk_log_once) {
-                printf("[blk] timeout type=%u blk=%u status=%x used=%u last=%u\n",
-                       type, block_index, req_status, vq_used->idx, vq_last_used_idx);
+                printf("[blk] timeout type=%d blk=%d status=%x used=%d last=%d\n",
+                       (int) type, (int) block_index, (unsigned) req_status,
+                       (int) vq_used->idx, (int) vq_last_used_idx);
                 blk_log_once = 1;
             }
             return -1;
@@ -227,7 +313,8 @@ static int virtio_do_io(uint32_t type, uint32_t block_index, void *buf) {
 
     if (req_status != 0) {
         if (!blk_log_once) {
-            printf("[blk] io err type=%u blk=%u status=%x\n", type, block_index, req_status);
+            printf("[blk] io err type=%d blk=%d status=%x\n",
+                   (int) type, (int) block_index, (unsigned) req_status);
             blk_log_once = 1;
         }
         return -1;
@@ -242,59 +329,15 @@ void blockdev_init(void) {
     }
 
     virtio_setup_vq_layout();
-
-    mmio_write(VIRTIO_MMIO_STATUS, 0);
-    mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_ACKNOWLEDGE);
-    mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_ACKNOWLEDGE | VIRTIO_STATUS_DRIVER);
-
-    mmio_write(VIRTIO_MMIO_DEVICE_FEATURES_SEL, 0);
-    uint32_t features0 = mmio_read(VIRTIO_MMIO_DEVICE_FEATURES);
-    mmio_write(VIRTIO_MMIO_DEVICE_FEATURES_SEL, 1);
-    uint32_t features1 = mmio_read(VIRTIO_MMIO_DEVICE_FEATURES);
-    (void) features0;
-
-    // Modern virtio-mmio requires VIRTIO_F_VERSION_1 negotiation.
-    if ((features1 & (1u << (VIRTIO_F_VERSION_1 - 32))) == 0) {
+    if (virtio_configure_device() < 0) {
         mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_FAILED);
-        PANIC("virtio-blk missing VERSION_1");
+        PANIC("virtio-blk configure failed");
     }
 
-    // Keep negotiated features minimal: only VERSION_1.
-    mmio_write(VIRTIO_MMIO_DRIVER_FEATURES_SEL, 0);
-    mmio_write(VIRTIO_MMIO_DRIVER_FEATURES, 0);
-    mmio_write(VIRTIO_MMIO_DRIVER_FEATURES_SEL, 1);
-    mmio_write(VIRTIO_MMIO_DRIVER_FEATURES, (1u << (VIRTIO_F_VERSION_1 - 32)));
-
-    uint32_t status = mmio_read(VIRTIO_MMIO_STATUS);
-    status |= VIRTIO_STATUS_FEATURES_OK;
-    mmio_write(VIRTIO_MMIO_STATUS, status);
-    if ((mmio_read(VIRTIO_MMIO_STATUS) & VIRTIO_STATUS_FEATURES_OK) == 0) {
-        mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_FAILED);
-        PANIC("virtio-blk FEATURES_OK rejected");
-    }
-
-    if (virtio_setup_queue() < 0) {
-        mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_FAILED);
-        PANIC("virtio-blk queue setup failed");
-    }
-
-    uint32_t cap_lo = mmio_read(VIRTIO_MMIO_CONFIG + 0x00);
-    uint32_t cap_hi = mmio_read(VIRTIO_MMIO_CONFIG + 0x04);
-    uint64_t cap = ((uint64_t) cap_hi << 32) | cap_lo;
-    if (cap == 0) {
+    if (virtio_read_capacity() < 0) {
         mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_FAILED);
         PANIC("virtio-blk capacity is zero");
     }
-    if (cap > 0xffffffffu) {
-        capacity_blocks = 0xffffffffu;
-    } else {
-        capacity_blocks = (uint32_t) cap;
-    }
-
-    mmio_write(VIRTIO_MMIO_STATUS,
-               VIRTIO_STATUS_ACKNOWLEDGE |
-               VIRTIO_STATUS_DRIVER |
-               VIRTIO_STATUS_DRIVER_OK);
 
     uint8_t probe[BLOCKDEV_BLOCK_SIZE];
     if (virtio_do_io(VIRTIO_BLK_T_IN, 0, probe) < 0) {
@@ -311,6 +354,17 @@ int blockdev_read(uint32_t block_index, void *out_block) {
         return -1;
     }
 
+    if (virtio_do_io(VIRTIO_BLK_T_IN, block_index, out_block) == 0) {
+        return 0;
+    }
+    if (!last_io_timed_out) {
+        return -1;
+    }
+
+    printf("[blk] recovering from timeout...\n");
+    if (virtio_recover_from_timeout() < 0) {
+        return -1;
+    }
     return virtio_do_io(VIRTIO_BLK_T_IN, block_index, out_block);
 }
 
@@ -322,5 +376,16 @@ int blockdev_write(uint32_t block_index, const void *in_block) {
         return -1;
     }
 
+    if (virtio_do_io(VIRTIO_BLK_T_OUT, block_index, (void *) in_block) == 0) {
+        return 0;
+    }
+    if (!last_io_timed_out) {
+        return -1;
+    }
+
+    printf("[blk] recovering from timeout...\n");
+    if (virtio_recover_from_timeout() < 0) {
+        return -1;
+    }
     return virtio_do_io(VIRTIO_BLK_T_OUT, block_index, (void *) in_block);
 }

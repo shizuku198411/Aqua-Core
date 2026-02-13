@@ -1,6 +1,7 @@
 #include "shell.h"
 #include "commonlibs.h"
 #include "process.h"
+#include "user_syscall.h"
 
 char *proc_state_to_string(int state) {
     switch (state) {
@@ -87,6 +88,7 @@ int str_len(const char *s) {
 
 // history ling buffer
 static char history[HISTORY_MAX][CMDLINE_MAX];
+static char history_path[10] = "/.history";
 static int history_head = 0;
 static int history_count = 0;
 
@@ -137,4 +139,107 @@ int history_get(int pos, char *out, int out_max) {
     }
     out[i] = '\0';
     return 0;
+}
+
+static size_t history_serialize(char *out, size_t out_cap) {
+    size_t pos = 0;
+    for (int i = 0; i < history_count; i++) {
+        int idx = (history_head + i) % HISTORY_MAX;
+        const char *s = history[idx];
+        while (*s) {
+            char c = *s++;
+            if (c == '\n' || c == '\\') {
+                if (pos + 2 >= out_cap) {
+                    return pos;
+                }
+                out[pos++] = '\\';
+                out[pos++] = (c == '\n') ? 'n' : '\\';
+            } else {
+                if (pos + 1 >= out_cap) {
+                    return pos;
+                }
+                out[pos++] = c;
+            }
+        }
+        if (pos + 1 >= out_cap) {
+            return pos;
+        }
+        out[pos++] = '\n';
+    }
+    return pos;
+}
+
+void history_load(void) {
+    int fd = fs_open(history_path, O_RDONLY);
+    if (fd < 0) {
+        return;
+    }
+
+    history_head = 0;
+    history_count = 0;
+
+    char line[CMDLINE_MAX];
+    int line_len = 0;
+    int escaped = 0;
+
+    char buf[256];
+    while (1) {
+        int n = fs_read(fd, buf, sizeof(buf));
+        if (n <= 0) {
+            break;
+        }
+
+        for (int i = 0; i < n; i++) {
+            char c = buf[i];
+
+            if (c == '\r') {
+                continue;
+            }
+
+            if (escaped) {
+                if (c == 'n') {
+                    c = '\n';
+                }
+                escaped = 0;
+            } else if (c == '\\') {
+                escaped = 1;
+                continue;
+            } else if (c == '\n') {
+                line[line_len] = '\0';
+                history_push(line);
+                line_len = 0;
+                continue;
+            }
+
+            if (line_len < CMDLINE_MAX - 1) {
+                line[line_len++] = c;
+            }
+        }
+    }
+
+    if (escaped && line_len < CMDLINE_MAX - 1) {
+        line[line_len++] = '\\';
+    }
+    if (line_len > 0) {
+        line[line_len] = '\0';
+        history_push(line);
+    }
+
+    fs_close(fd);
+}
+
+void history_write(void) {
+    int fd = fs_open(history_path, O_CREAT | O_WRONLY | O_TRUNC);
+    if (fd < 0) {
+        printf("open failed\n");
+        return;
+    }
+
+    char buf[HISTORY_MAX * CMDLINE_MAX * 2];
+    size_t n = history_serialize(buf, sizeof(buf));
+    int w = fs_write(fd, buf, n);
+    if (w < 0) {
+        printf("write failed\n");
+    }
+    fs_close(fd);
 }

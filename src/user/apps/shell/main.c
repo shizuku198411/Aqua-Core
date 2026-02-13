@@ -10,6 +10,8 @@
 #include "commands_sys.h"
 
 void main(void) {
+    history_load();
+
     while (1) {
 prompt:
         printf("\033[34maqua-core\033[0m:$ ");
@@ -165,6 +167,7 @@ prompt:
         }
 
         else if (strcmp(argv[0], "shutdown") == 0 && argc == 1) {
+            history_write();
             shell_cmd_shutdown();
         }
 

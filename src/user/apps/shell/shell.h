@@ -13,3 +13,5 @@ int history_size(void);
 int history_get(int pos, char *out, int out_max);
 char *proc_state_to_string(int state);
 char *proc_wait_reason_to_string(int wait_reason);
+void history_load(void);
+void history_write(void);
