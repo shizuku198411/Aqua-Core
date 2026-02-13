@@ -19,7 +19,11 @@ void shell_cmd_kernel_info(void) {
         printf("time slice    : %d ticks\n", info.time_slice_ticks);
         printf("timer interval: %d ms\n", info.timer_interval_ms);
         printf("ramfs node max: %d\n", info.ramfs_node_max);
-        printf("ramfs size max: %d\n", info.ramfs_size_max);
+        printf("ramfs size max: %d bytes\n", info.ramfs_size_max);
+        printf("pfs blk count : %d\n", info.pfs_block_count);
+        printf("pfs blk size  : %d bytes\n", info.pfs_block_size);
+        printf("pfs img blks  : %d\n", info.pfs_image_blocks);
+        printf("pfs img bytes : %d\n", info.pfs_image_bytes);
     }
 }
 

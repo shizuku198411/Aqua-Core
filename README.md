@@ -33,6 +33,10 @@ QEMU + OpenSBI 環境での動作を前提に実装しています。
 - IPC
   - プロセスごとの単一 mailbox
   - `ipc_send` / `ipc_recv` による送受信
+- ファイルシステム (VFS)
+  - `/` : PFS（virtio-blk上の永続ストレージ）
+  - `/tmp` : RAMFS（揮発ストレージ）
+  - `ls` / `cat` / `write` / `mkdir` / `rm` などのファイル操作
 - ユーザアプリ
   - `shell`
   - `ipc_rx`（受信待機アプリ）
@@ -49,4 +53,5 @@ QEMU + OpenSBI 環境での動作を前提に実装しています。
 - [Syscall](./docs/syscall.md)
 - [Memory / Process](./docs/memory-process.md)
 - [Process Management](./docs/process-management.md)
+- [VFS / RAMFS / VirtIO Block Storage](./docs/vfs.md)
 - [SV32 Paging](./docs/sv32.md)

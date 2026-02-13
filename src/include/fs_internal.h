@@ -12,3 +12,4 @@ int fs_readdir(const char *path, int index, struct fs_dirent *out);
 int fs_unlink(const char *path);
 int fs_rmdir(const char *path);
 void fs_on_process_recycle(int pid);
+uint32_t fs_get_pfs_image_blocks(void);

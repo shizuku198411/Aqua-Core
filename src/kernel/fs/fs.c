@@ -874,3 +874,7 @@ void fs_on_process_recycle(int pid) {
         fd_table[pid][fd].flags = 0;
     }
 }
+
+uint32_t fs_get_pfs_image_blocks(void) {
+    return (uint32_t) pfs_block_count();
+}

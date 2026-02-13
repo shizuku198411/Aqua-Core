@@ -106,6 +106,10 @@ struct kernel_info {
     uint32_t timer_interval_ms;
     uint32_t ramfs_node_max;
     uint32_t ramfs_size_max;
+    uint32_t pfs_block_size;
+    uint32_t pfs_block_count;
+    uint32_t pfs_image_blocks;
+    uint32_t pfs_image_bytes;
 };
 
 void user_entry(void);

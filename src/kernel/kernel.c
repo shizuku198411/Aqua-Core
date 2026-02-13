@@ -8,6 +8,7 @@
 #include "sbi.h"
 #include "fs.h"
 #include "fs_internal.h"
+#include "blockdev.h"
 
 
 extern char __bss[], __bss_end[], __stack_top[];
@@ -195,7 +196,11 @@ void kernel_bootstrap(void) {
     printf("     time slice    : %d ticks\n", SCHED_TIME_SLICE_TICKS);
     printf("     timer interval: %d ms\n", (TIMER_INTERVAL / 10000));
     printf("     ramfs node max: %d\n", FS_MAX_NODES);
-    printf("     ramfs size max: %d\n", FS_FILE_MAX_SIZE);
+    printf("     ramfs size max: %d bytes\n", FS_FILE_MAX_SIZE);
+    printf("     pfs blk count : %d\n", BLOCKDEV_BLOCK_COUNT);
+    printf("     pfs blk size  : %d bytes\n", BLOCKDEV_BLOCK_SIZE);
+    printf("     pfs img blks  : %d\n", (int) fs_get_pfs_image_blocks());
+    printf("     pfs img bytes : %d\n", (int) (fs_get_pfs_image_blocks() * BLOCKDEV_BLOCK_SIZE));
 
     printf("[*] kernel bootstrap completed.\n");
 }
@@ -222,6 +227,10 @@ void kernel_get_info(struct kernel_info *out) {
     out->timer_interval_ms = TIMER_INTERVAL / 10000;
     out->ramfs_node_max = FS_MAX_NODES;
     out->ramfs_size_max = FS_FILE_MAX_SIZE;
+    out->pfs_block_size = BLOCKDEV_BLOCK_SIZE;
+    out->pfs_block_count = BLOCKDEV_BLOCK_COUNT;
+    out->pfs_image_blocks = fs_get_pfs_image_blocks();
+    out->pfs_image_bytes = out->pfs_image_blocks * BLOCKDEV_BLOCK_SIZE;
 }
 
 void kernel_main(void) {

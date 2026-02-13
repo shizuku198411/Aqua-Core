@@ -16,7 +16,7 @@
   - bitmap allocator、プロセス生成/解放、タイムスライス付き RR、IPC mailbox
 - [Process Management](./process-management.md)
   - `struct process`、作成フロー、タイムスライス付きRR、`kill`/`waitpid`/`ps_info`
-- [VFS / RAMFS / VirtIO Block Storage](./ramfs.md)
+- [VFS / RAMFS / VirtIO Block Storage](./vfs.md)
   - / と /tmp の共存、永続化PFS、virtio-blk、障害原因と対策
 - [SV32 Paging](./sv32.md)
   - 2段ページテーブル、アドレス計算、マッピング、QEMU/GDB での VA/PA 追跡
