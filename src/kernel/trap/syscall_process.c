@@ -98,3 +98,48 @@ void syscall_handle_waitpid(struct trap_frame *f) {
 void syscall_handle_kill(struct trap_frame *f) {
     f->a0 = process_kill((int) f->a0);
 }
+
+void syscall_handle_fork(struct trap_frame *f) {
+    // TODO: implement fork
+
+    f->a0 = -1;
+}
+
+void syscall_handle_exec(struct trap_frame *f) {
+    const void *image = NULL;
+    size_t image_size = 0;
+    const char *name = NULL;
+
+    switch ((int) f->a0) {
+        case APP_ID_SHELL:
+            image = _binary___bin_shell_bin_start;
+            image_size = (size_t) _binary___bin_shell_bin_size;
+            name = "shell";
+            break;
+        case APP_ID_IPC_RX:
+            image = _binary___bin_ipc_rx_bin_start;
+            image_size = (size_t) _binary___bin_ipc_rx_bin_size;
+            name = "ipc_rx";
+            break;
+        default:
+            f->a0 = -1;
+            return;
+    }
+
+    // TODO: implement exec
+    (void)image;
+    (void)image_size;
+    (void)name;
+
+    f->a0 = -1;
+}
+
+void syscall_handle_dup2(struct trap_frame *f) {
+    int fd1 = f->a0;
+    int fd2 = f->a1;
+    (void)fd1;
+    (void)fd2;
+
+    // TODO: implement dup2
+    f->a0 = -1;
+}

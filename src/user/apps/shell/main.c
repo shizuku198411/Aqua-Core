@@ -8,6 +8,7 @@
 #include "commands_fs.h"
 #include "commands_proc.h"
 #include "commands_sys.h"
+#include "syscall.h"
 
 void main(void) {
     history_load();
@@ -170,6 +171,27 @@ prompt:
             history_write();
             shell_cmd_shutdown();
         }
+
+        #ifdef DEBUG
+        else if (strcmp(argv[0], "syscall_test") == 0 && argc == 2) {
+            int ret;
+            if (strcmp(argv[1], "fork") == 0) {
+                ret = fork();
+            }
+            else if (strcmp(argv[1], "exec") == 0) {
+                ret = exec(APP_ID_IPC_RX);
+            }
+            else if (strcmp(argv[1], "dup2") == 0) {
+                ret = dup2(1, 2);
+            }
+            else {
+                printf("unknown syscall\n");
+                continue;
+            }
+            if (ret == -1) printf("not implemented\n");
+            else printf("syscall success\n");
+        }
+        #endif
 
         else {
             printf("command not found.\n");

@@ -15,6 +15,7 @@
 - [Syscall](./syscall.md)
 - [Process Management](./process-management.md)
 - [Kernel Bootstrap](./kernel-bootstrap.md)
+- [Troubleshoot: VFS Write Failed](./troubleshoot/vfs_write_failed_rootcause.md)
 
 ## 概要
 
@@ -218,41 +219,6 @@ QEMU起動条件（`scripts/start.sh`）:
 - fs core: `fs_open/read/write/...` (`src/kernel/fs/fs.c`)
 
 `syscall_fs.c` では user pointer を扱うため `sstatus.SUM` を一時的に有効化しています。
-
-## 既知事象（/ への write failed）
-
-### 症状
-
-- `/tmp` への書き込みは成功
-- `/` への書き込みのみ `write failed`
-
-### 原因
-
-`src/kernel/fs/fs.c` の以下で巨大ローカル変数をカーネルスタックに確保していたため。
-
-- `pfs_sync()`
-- `nodefs_init_instance()`
-
-`struct pfs_image` は `nodes[FS_MAX_NODES]` を含み、約70KB規模。
-一方で `struct process.stack` は 8KB のため、スタックオーバーフローで `procs` 周辺メモリを破壊し、
-結果として `current_proc` / pid が不整合になって `fs_write` が失敗していました。
-
-### 対策
-
-1. `pfs_image` をローカル変数から静的ワークバッファへ移動
-
-- `static struct pfs_image pfs_work_img;`
-- `pfs_sync()` と `nodefs_init_instance()` はこのバッファを使用
-
-2. trap処理の堅牢化
-
-- `kernel_entry` 先頭で SIE をクリア（カーネル内ネスト割り込み防止）
-- `trap_handler` で trap frame 所有プロセスを復元し、`current_proc/sscratch` 同期を強化
-
-3. MMIO領域をプロセスページテーブルへ明示マップ
-
-- `create_process()` で `MMIO_BASE..MMIO_END` を `PAGE_R|PAGE_W` で map
-- virtio notify 時のページフォルトを回避
 
 ## 今後の拡張候補
 
