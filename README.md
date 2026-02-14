@@ -61,12 +61,18 @@ make run
   - `/` : PFS（virtio-blk上の永続ストレージ）
   - `/tmp` : RAMFS（揮発ストレージ）
   - `ls` / `cat` / `write` / `mkdir` / `rm` などのファイル操作
+  - `dup2` と shell リダイレクト（`<`, `>`）
 - RTC/時刻
   - Goldfish RTC ドライバによる現在時刻取得
   - `gettime` syscall と shell `date` コマンド
+- shell UX
+  - コマンド履歴（保存/復元）
+  - 履歴の上下キー参照
+  - 左右キーでカーソル移動、途中挿入/削除（Backspace/Delete）
+  - Tab 補完（App名）
 - ユーザアプリ
-  - `shell`
-  - `ipc_rx`（受信待機アプリ）
+  - `shell`, `ps`, `date`, `ls`, `mkdir`, `rmdir`, `touch`, `rm`, `write`, `cat`, `kill`, `kernel_info`, `bitmap`
+  - `ipc_rx`（`receiver`/`sender` モード）
 - カーネル終了
   - init プロセス終了時の shutdown 処理
 
@@ -80,7 +86,12 @@ make run
 - [Syscall](./docs/syscall.md)
 - [Memory / Process](./docs/memory-process.md)
 - [Process Management](./docs/process-management.md)
+- [Fork / Exec](./docs/fork-exec.md)
+- [Execv Argument Passing](./docs/execv-args.md)
+- [Shell Redirection](./docs/shell-redirection.md)
 - [VFS / RAMFS / VirtIO Block Storage](./docs/vfs.md)
 - [RTC / Time Syscall](./docs/rtc.md)
 - [Memory Map](./docs/memory-map.md)
 - [SV32 Paging](./docs/sv32.md)
+- [Page Table Mapping Path](./docs/page-table-path.md)
+- [Troubleshoot: Page Table Walk GDB手順](./docs/troubleshoot/page_table_walk_gdb.md)
