@@ -208,5 +208,10 @@ void syscall_handle_chdir(struct trap_frame *f) {
     current_proc->cwd_node_idx = node_idx;
     strcpy_s(current_proc->cwd_path, FS_PATH_MAX, path);
 
+    // sync procfs
+    if (procfs_sync_process(current_proc) < 0) {
+        printf("procfs sync failed\n");
+    }
+
     f->a0 = 0;
 }

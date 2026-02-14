@@ -3,6 +3,7 @@
 #include "user_apps.h"
 #include "process.h"
 #include "kernel.h"
+#include "commonlibs.h"
 
 extern struct process *current_proc;
 extern struct process *init_proc;
@@ -170,11 +171,21 @@ void syscall_handle_exit(struct trap_frame *f) {
     // Treat pid=1 as init process. When init exits, shut down kernel.
     if (current_proc && current_proc == init_proc) {
         current_proc->state = PROC_EXITED;
+        current_proc->wait_reason = PROC_WAIT_NONE;
+        current_proc->wait_pid = -1;
+        if (procfs_sync_process(current_proc) < 0) {
+            printf("procfs sync failed\n");
+        }
         kernel_shutdown();
     }
 
     orphan_children(current_proc->pid);
     current_proc->state = PROC_EXITED;
+    current_proc->wait_reason = PROC_WAIT_NONE;
+    current_proc->wait_pid = -1;
+    if (procfs_sync_process(current_proc) < 0) {
+        printf("procfs sync failed\n");
+    }
     notify_child_exit(current_proc);
     yield();
 }

@@ -44,6 +44,15 @@ static void clear_exec_args(struct process *proc) {
     }
 }
 
+static void procfs_sync_best_effort(const struct process *proc) {
+    if (!proc || proc->pid <= 0) {
+        return;
+    }
+    if (procfs_sync_process(proc) < 0) {
+        printf("procfs sync failed\n");
+    }
+}
+
 static void set_exec_args(struct process *proc,
                           int argc,
                           const char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN]) {
@@ -316,12 +325,7 @@ struct process *create_process(const void *image, size_t image_size, const char 
     strcpy_s(proc->cwd_path, FS_PATH_MAX, "/");
 
     // write process status to procfs
-    if (proc->pid != 0) {
-        if (procfs_sync_process(proc) < 0) {
-            // current impl: if sync failed, print log and continue process execution
-            printf("[err] procfs sync failed\n");
-        }
-    }
+    procfs_sync_best_effort(proc);
 
     return proc;
 }
@@ -480,6 +484,9 @@ int process_fork(struct trap_frame *parent_tf) {
     child->run_ticks = 0;
     child->schedule_count = 0;
 
+    // sync procfs
+    procfs_sync_best_effort(child);
+
     return child->pid;
 
 fail:
@@ -541,6 +548,9 @@ int process_exec(const void *image,
     current_proc->time_slice = SCHED_TIME_SLICE_TICKS;
     current_proc->run_ticks = 0;
     set_exec_args(current_proc, argc, argv);
+
+    // sync procfs
+    procfs_sync_best_effort(current_proc);
 
     WRITE_CSR(sepc, USER_BASE);
 
@@ -631,6 +641,8 @@ void wakeup_input_waiters(void) {
             procs[i].wait_reason == PROC_WAIT_CONSOLE_INPUT) {
             procs[i].state = PROC_RUNNABLE;
             procs[i].wait_reason = PROC_WAIT_NONE;
+            procs[i].wait_pid = -1;
+            procfs_sync_best_effort(&procs[i]);
         }
     }
 }
@@ -655,6 +667,7 @@ void notify_child_exit(struct process *child) {
             proc->state = PROC_RUNNABLE;
             proc->wait_reason = PROC_WAIT_NONE;
             proc->wait_pid = -1;
+            procfs_sync_best_effort(proc);
         }
     }
 }
@@ -706,6 +719,7 @@ int wait_for_child_exit(int parent_pid, int target_pid) {
         current_proc->wait_reason = PROC_WAIT_CHILD_EXIT;
         current_proc->wait_pid = target_pid;
         current_proc->state = PROC_WAITTING;
+        procfs_sync_best_effort(current_proc);
         yield();
     }
 }
@@ -728,6 +742,8 @@ int process_ipc_send(int src_pid, int dst_pid, uint32_t message) {
     if (dst->state == PROC_WAITTING && dst->wait_reason == PROC_WAIT_IPC_RECV) {
         dst->state = PROC_RUNNABLE;
         dst->wait_reason = PROC_WAIT_NONE;
+        dst->wait_pid = -1;
+        procfs_sync_best_effort(dst);
     }
 
     return 0;
@@ -744,6 +760,7 @@ int process_ipc_recv(int self_pid, int *from_pid, uint32_t *message) {
         self->wait_reason = PROC_WAIT_IPC_RECV;
         self->wait_pid = -1;
         self->state = PROC_WAITTING;
+        procfs_sync_best_effort(self);
         yield();
     }
 
@@ -779,6 +796,7 @@ int process_kill(int target_pid) {
     target->state = PROC_EXITED;
     target->wait_reason = PROC_WAIT_NONE;
     target->wait_pid = -1;
+    procfs_sync_best_effort(target);
     notify_child_exit(target);
 
     if (target == current_proc) {
