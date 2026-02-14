@@ -4,6 +4,7 @@
 #include "process.h"
 #include "user_syscall.h"
 #include "user_apps.h"
+#include "fs.h"
 
 static int shell_output_fd = -1;
 static int shell_input_fd = -1;
@@ -194,9 +195,21 @@ int parse_redirection(char **argv, int argc, char **exec_argv, int *exec_argc, c
     return 0;
 }
 
-void redraw_cmdline(const char *line) {
+void redraw_cmdline(const char *line, int cursor_pos) {
     // Move to line head, redraw prompt, clear rest of line, then print cmdline.
     printf("\r\033[34maqua-core\033[0m:$ \033[K%s", line);
+
+    int len = str_len(line);
+    if (cursor_pos < 0) {
+        cursor_pos = 0;
+    }
+    if (cursor_pos > len) {
+        cursor_pos = len;
+    }
+
+    for (int i = cursor_pos; i < len; i++) {
+        putchar('\b');
+    }
 }
 
 int str_len(const char *s) {
@@ -262,27 +275,53 @@ int history_get(int pos, char *out, int out_max) {
     return 0;
 }
 
+static size_t history_encoded_line_len(const char *s) {
+    size_t n = 1; // trailing '\n'
+    while (*s) {
+        char c = *s++;
+        n += (c == '\n' || c == '\\') ? 2 : 1;
+    }
+    return n;
+}
+
 static size_t history_serialize(char *out, size_t out_cap) {
+    if (!out || out_cap == 0) {
+        return 0;
+    }
+
+    // Keep most recent entries within persistent file capacity.
+    int start = history_count;
+    size_t total = 0;
+    for (int i = history_count - 1; i >= 0; i--) {
+        int idx = (history_head + i) % HISTORY_MAX;
+        size_t need = history_encoded_line_len(history[idx]);
+        if (total + need > out_cap) {
+            break;
+        }
+        total += need;
+        start = i;
+    }
+
     size_t pos = 0;
-    for (int i = 0; i < history_count; i++) {
+    for (int i = start; i < history_count; i++) {
         int idx = (history_head + i) % HISTORY_MAX;
         const char *s = history[idx];
-        while (*s) {
+        while (*s && pos < out_cap) {
             char c = *s++;
             if (c == '\n' || c == '\\') {
-                if (pos + 2 >= out_cap) {
+                if (pos + 2 > out_cap) {
                     return pos;
                 }
                 out[pos++] = '\\';
                 out[pos++] = (c == '\n') ? 'n' : '\\';
             } else {
-                if (pos + 1 >= out_cap) {
+                if (pos + 1 > out_cap) {
                     return pos;
                 }
                 out[pos++] = c;
             }
         }
-        if (pos + 1 >= out_cap) {
+        if (pos + 1 > out_cap) {
             return pos;
         }
         out[pos++] = '\n';
@@ -356,10 +395,10 @@ void history_write(void) {
         return;
     }
 
-    char buf[HISTORY_MAX * CMDLINE_MAX * 2];
+    char buf[FS_FILE_MAX_SIZE];
     size_t n = history_serialize(buf, sizeof(buf));
-    int w = fs_write(fd, buf, n);
-    if (w < 0) {
+    int w = fs_write(fd, buf, (int) n);
+    if (w < 0 || (size_t) w != n) {
         printf("write failed\n");
     }
     fs_close(fd);
