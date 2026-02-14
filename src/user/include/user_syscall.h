@@ -27,5 +27,5 @@ int fs_rmdir(const char *path);
 int gettime(struct time_spec *out);
 int fork(void);
 int exec(int app_id);
-int dup2(int fd1, int fd2);
+int dup2(int old_fd, int new_fd);
 __attribute__((noreturn)) void exit(void);

@@ -146,3 +146,15 @@ void syscall_handle_rmdir(struct trap_frame *f) {
 
     f->a0 = ret;
 }
+
+void syscall_handle_dup2(struct trap_frame *f) {
+    int fd1 = f->a0;
+    int fd2 = f->a1;
+
+    int ret = fs_dup2(current_proc->pid, fd1, fd2);
+    if (ret < 0) {
+        f->a0 = -1;
+        return;
+    }
+    f->a0 = ret;
+}
