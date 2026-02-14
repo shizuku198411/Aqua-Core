@@ -210,6 +210,43 @@ prompt:
 
             printf("[parent] child pid=%d\n", pid);
         }
+
+        else if (strcmp(argv[0], "dup2_test") == 0 && argc == 1) {
+            // create old_fd
+            char *old_path = "/tmp/dup2.test";
+            shell_cmd_write((const char *)old_path, "dup2_test");
+            // open old_path
+            int old_fd = fs_open((const char *)old_path, O_RDONLY);
+
+            // case1: invalid new_fd
+            if (dup2(old_fd, FS_FD_MAX) == -1) printf("dup2() failed\n");
+            // case2: invalid old_fd
+            if (dup2(FS_FD_MAX, old_fd) == -1) printf("dup2() failed\n");
+            // case3: new_fd same as old_fd
+            if (dup2(old_fd, old_fd) == old_fd) printf("dup2() success\n");
+            // case4: new_fd not same as old_fd
+            int new_fd = old_fd + 1;
+            if (dup2(old_fd, new_fd) == new_fd) {
+                printf("dup2() success\n");
+                // read new_fd
+                char buf[64];
+                while (1) {
+                    int n = fs_read(new_fd, buf, sizeof(buf) - 1);
+                    if (n <= 0) {
+                        break;
+                    }
+                    buf[n] = '\0';
+                    printf("%s", buf);
+                }
+                printf("\n");
+                fs_close(new_fd);
+            } else {
+                printf("dup2() failed\n");
+            }
+
+            // close old_fd
+            fs_close(old_fd);
+        }
         #endif
 
         else {

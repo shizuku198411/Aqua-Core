@@ -117,6 +117,6 @@ int exec(int app_id) {
     return syscall(SYSCALL_EXEC, app_id, 0, 0);
 }
 
-int dup2(int fd1, int fd2) {
-    return syscall(SYSCALL_DUP2, fd1, fd2, 0);
+int dup2(int old_fd, int new_fd) {
+    return syscall(SYSCALL_DUP2, old_fd, new_fd, 0);
 }

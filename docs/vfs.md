@@ -68,6 +68,24 @@ VFSは「マウントテーブル + FDテーブル」で管理しています。
 
 この構造により、`fs_read/fs_write` は「mount_idx から backend ops を引く」だけで、PFS/RAMFSを透過的に扱えます。
 
+```
+process(pid)
+  └─ fd_table[pid][fd]  (vfs_fd: プロセスごとのFDスロット)
+       ├─ used
+       ├─ mount_idx  -----------+
+       ├─ node_index ---------+ |
+       ├─ offset              | |
+       └─ flags               | |
+                              | |
+mount_table[mount_idx]  <-----+ |
+  ├─ mount point ("/", "/tmp")  |
+  ├─ fs ops (open/read/write...)|
+  └─ backend private data       |
+                                |
+backend filesystem (PFS/RAMFS)<-+
+  └─ node[node_index]  (実ファイル/ディレクトリ実体)
+```
+
 ### マウント解決の処理
 
 `vfs_resolve_mount()` は「最長一致」を使います。

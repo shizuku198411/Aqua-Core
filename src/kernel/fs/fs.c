@@ -861,6 +861,25 @@ int fs_rmdir(const char *path) {
     return m->ops->rmdir(m->ctx, subpath);
 }
 
+int fs_dup2(int pid, int old_fd, int new_fd) {
+    if (pid < 0 || pid >= PROCS_MAX) return -1;
+    if ((old_fd < 0 || old_fd >= FS_FD_MAX) || !fd_table[pid][old_fd].used) return -1;
+    if (new_fd < 0 || new_fd >= FS_FD_MAX) return -1;
+
+    if (old_fd == new_fd) return new_fd;
+
+    // close if new fd is already used
+    if (fd_table[pid][new_fd].used) {
+        if (fs_close(pid, new_fd) < 0) {
+            return -1;
+        }
+    }
+    // copy old_fd to new_fd
+    fd_table[pid][new_fd] = fd_table[pid][old_fd];
+    fd_table[pid][new_fd].used = 1;
+    return new_fd;
+}
+
 void fs_on_process_recycle(int pid) {
     if (pid < 0 || pid >= PROCS_MAX) {
         return;

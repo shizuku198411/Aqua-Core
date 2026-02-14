@@ -132,13 +132,3 @@ void syscall_handle_exec(struct trap_frame *f) {
     int ret = process_exec(image, image_size, name);
     f->a0 = (ret < 0) ? -1 : 0;
 }
-
-void syscall_handle_dup2(struct trap_frame *f) {
-    int fd1 = f->a0;
-    int fd2 = f->a1;
-    (void)fd1;
-    (void)fd2;
-
-    // TODO: implement dup2
-    f->a0 = -1;
-}
