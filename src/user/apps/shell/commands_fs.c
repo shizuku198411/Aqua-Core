@@ -6,20 +6,20 @@
 
 void shell_cmd_mkdir(const char *path) {
     if (fs_mkdir(path) < 0) {
-        printf("mkdir failed\n");
+        shell_printf("mkdir failed\n");
     }
 }
 
 void shell_cmd_rmdir(const char *path) {
     if (fs_rmdir(path) < 0) {
-        printf("rmdir failed\n");
+        shell_printf("rmdir failed\n");
     }
 }
 
 void shell_cmd_touch(const char *path) {
     int fd = fs_open(path, O_CREAT | O_WRONLY);
     if (fd < 0) {
-        printf("touch failed\n");
+        shell_printf("touch failed\n");
     } else {
         fs_close(fd);
     }
@@ -27,21 +27,21 @@ void shell_cmd_touch(const char *path) {
 
 void shell_cmd_rm(const char *path) {
     if (fs_unlink(path) < 0) {
-        printf("rm failed\n");
+        shell_printf("rm failed\n");
     }
 }
 
 void shell_cmd_write(const char *path, const char *text) {
     int fd = fs_open(path, O_CREAT | O_WRONLY | O_TRUNC);
     if (fd < 0) {
-        printf("open failed\n");
+        shell_printf("open failed\n");
         return;
     }
 
     int n = str_len(text);
     int w = fs_write(fd, text, n);
     if (w < 0) {
-        printf("write failed\n");
+        shell_printf("write failed\n");
     }
     fs_close(fd);
 }
@@ -49,7 +49,7 @@ void shell_cmd_write(const char *path, const char *text) {
 void shell_cmd_cat(const char *path) {
     int fd = fs_open(path, O_RDONLY);
     if (fd < 0) {
-        printf("cat failed\n");
+        shell_printf("cat failed\n");
         return;
     }
 
@@ -60,9 +60,9 @@ void shell_cmd_cat(const char *path) {
             break;
         }
         buf[n] = '\0';
-        printf("%s", buf);
+        shell_printf("%s", buf);
     }
-    printf("\n");
+    shell_printf("\n");
     fs_close(fd);
 }
 
@@ -106,7 +106,7 @@ void shell_cmd_ls(int argc, char **argv) {
 
     struct fs_dirent ent;
     if (detail) {
-        printf("TYPE\tSIZE\tNAME\n");
+        shell_printf("TYPE\tSIZE\tNAME\n");
         for (int i = 0;; i++) {
             if (fs_readdir(path, i, &ent) < 0) {
                 break;
@@ -114,11 +114,11 @@ void shell_cmd_ls(int argc, char **argv) {
             if (!all_print && ent.name[0] == '.') {
                 continue;
             }
-            printf("%s\t%d\t", ent.type == FS_TYPE_DIR ? "d" : "f", ent.size);
+            shell_printf("%s\t%d\t", ent.type == FS_TYPE_DIR ? "d" : "f", ent.size);
             if (ent.type == FS_TYPE_DIR) {
-                printf("%s/\n", ent.name);
+                shell_printf("%s/\n", ent.name);
             } else {
-                printf("%s\n", ent.name);
+                shell_printf("%s\n", ent.name);
             }
         }
     } else {
@@ -131,16 +131,16 @@ void shell_cmd_ls(int argc, char **argv) {
                 continue;
             }
             if (ent.type == FS_TYPE_DIR) {
-                printf("%s/\t", ent.name);
+                shell_printf("%s/\t", ent.name);
             } else {
-                printf("%s\t", ent.name);
+                shell_printf("%s\t", ent.name);
             }
             if ((i != 0) && (i % 10 == 0)) {
-                printf("\n");
+                shell_printf("\n");
             }
         }
         if (i < 10) {
-            printf("\n");
+            shell_printf("\n");
         }
     }
 }

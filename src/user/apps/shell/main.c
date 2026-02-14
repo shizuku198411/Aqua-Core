@@ -101,10 +101,63 @@ prompt:
         // push history
         history_push(cmdline);
 
-        char *argv[8];
-        int argc = split_args(cmdline, argv, 8);
-        if (argc == 0) {
+        char *raw_argv[8];
+        int raw_argc = split_args(cmdline, raw_argv, 8);
+        if (raw_argc == 0) {
             goto prompt;
+        }
+
+        // parse redirection
+        char *in_path = NULL;
+        char *out_path = NULL;
+        char *argv[8];
+        int argc = 0;
+        if (parse_redirection(raw_argv, raw_argc, argv, &argc, &in_path, &out_path) < 0) {
+            printf("redirection syntax error\n");
+            goto prompt;
+        }
+        if (argc == 0) {
+            printf("command not found.\n");
+            goto prompt;
+        }
+
+        // prepare fd
+        bool stdin_redirected = false;
+        bool stdout_redirected = false;
+        if (in_path) {
+            int fd_in = fs_open(in_path, O_RDONLY);
+            if (fd_in < 0) {
+                printf("file open failed\n");
+                goto prompt;
+            }
+            if (fd_in != 0) {
+                if (dup2(fd_in, 0) < 0) {
+                    printf("dup2 failed\n");
+                    fs_close(fd_in);
+                    goto prompt;
+                }
+                fs_close(fd_in);
+            }
+            stdin_redirected = true;
+        }
+        if (out_path) {
+            int fd_out = fs_open(out_path, O_WRONLY | O_CREAT | O_TRUNC);
+            if (fd_out < 0) {
+                printf("file open failed\n");
+                goto prompt;
+            }
+            if (fd_out != 1) {
+                if (dup2(fd_out, 1) < 0) {
+                    printf("dup2 failed\n");
+                    fs_close(fd_out);
+                    if (stdin_redirected) {
+                        fs_close(0);
+                    }
+                    goto prompt;
+                }
+                fs_close(fd_out);
+            }
+            stdout_redirected = true;
         }
 
         if (strcmp(argv[0], "mkdir") == 0 && argc == 2) {
@@ -177,10 +230,9 @@ prompt:
             int pid = fork();
             if (pid < 0) {
                 printf("fork failed\n");
-                continue;
             }
 
-            if (pid == 0) {
+            else if (pid == 0) {
                 printf("[child] fork() returned 0\n");
                 shell_cmd_ps();
                 exit();
@@ -195,10 +247,9 @@ prompt:
             int pid = fork();
             if (pid < 0)  {
                 printf("fork failed\n");
-                continue;
             }
 
-            if (pid == 0) {
+            else if (pid == 0) {
                 printf("[child] fork() returned 0\n");
                 printf("[child] exec IPC_RX\n");
                 int ret = exec(APP_ID_IPC_RX);
@@ -247,10 +298,17 @@ prompt:
             // close old_fd
             fs_close(old_fd);
         }
+
+        else if (strcmp(argv[0], "stdin_test") == 0 && argc == 1) {
+            shell_cmd_stdin_test();
+        }
         #endif
 
         else {
             printf("command not found.\n");
         }
+
+        if (stdout_redirected) fs_close(1);
+        if (stdin_redirected) fs_close(0);
     }
 }

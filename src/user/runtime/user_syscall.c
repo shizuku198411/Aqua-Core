@@ -20,12 +20,17 @@ int syscall(int sysno, int arg0, int arg1, int arg2) {
 
 
 void putchar(char ch) {
-    syscall(SYSCALL_PUTCHAR, ch, 0, 0);
+    (void) syscall(SYSCALL_WRITE, 1, (int) &ch, 1);
 }
 
 
 long getchar(void) {
-    return syscall(SYSCALL_GETCHAR, 0, 0, 0);
+    char ch = 0;
+    int n = syscall(SYSCALL_READ, 0, (int) &ch, 1);
+    if (n <= 0) {
+        return -1;
+    }
+    return (uint8_t) ch;
 }
 
 

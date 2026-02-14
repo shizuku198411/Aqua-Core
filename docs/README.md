@@ -18,6 +18,8 @@
   - `struct process`、作成フロー、タイムスライス付きRR、`kill`/`waitpid`/`ps_info`
 - [Fork / Exec](./fork-exec.md)
   - `fork` の親子分岐と `exec` のユーザ空間置換（最小実装）
+- [Shell Redirection](./shell-redirection.md)
+  - `>` / `<` のパース、`fd0/fd1` ベースの標準入出力、`dup2` 連携
 - [VFS / RAMFS / VirtIO Block Storage](./vfs.md)
   - / と /tmp の共存、永続化PFS、virtio-blk、障害原因と対策
 - [RTC / Time Syscall](./rtc.md)
