@@ -314,6 +314,15 @@ struct process *create_process(const void *image, size_t image_size, const char 
     proc->cwd_mount_idx = root_mount_idx;
     proc->cwd_node_idx = root_node_idx;
     strcpy_s(proc->cwd_path, FS_PATH_MAX, "/");
+
+    // write process status to procfs
+    if (proc->pid != 0) {
+        if (procfs_sync_process(proc) < 0) {
+            // current impl: if sync failed, print log and continue process execution
+            printf("[err] procfs sync failed\n");
+        }
+    }
+
     return proc;
 }
 
