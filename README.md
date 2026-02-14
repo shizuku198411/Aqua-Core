@@ -52,16 +52,22 @@ make run
   - SV32 2段ページテーブル構築とマッピング
 - プロセス管理/スケジューリング
   - プロセス作成 (`create_process`)
+  - `fork` / `exec` / `execv`（引数付き実行）
   - タイムスライス付きラウンドロビン (`yield`)
   - 終了プロセスの回収 (`reap_exited_processes`, `waitpid`)
+  - `kill` / `waitpid`
 - IPC
   - プロセスごとの単一 mailbox
   - `ipc_send` / `ipc_recv` による送受信
 - ファイルシステム (VFS)
   - `/` : PFS（virtio-blk上の永続ストレージ）
   - `/tmp` : RAMFS（揮発ストレージ）
+  - `/proc` : RAMFSベース procfs (`/proc/<pid>/status`)
   - `ls` / `cat` / `write` / `mkdir` / `rm` などのファイル操作
   - `dup2` と shell リダイレクト（`<`, `>`）
+- カレントディレクトリ
+  - プロセスごとの `cwd` / `root` 管理
+  - `cd` と相対パス解決（`cat`, `rm`, `write`, `touch`, `mkdir`, `rmdir` など）
 - RTC/時刻
   - Goldfish RTC ドライバによる現在時刻取得
   - `gettime` syscall と shell `date` コマンド
@@ -72,6 +78,7 @@ make run
   - Tab 補完（App名）
 - ユーザアプリ
   - `shell`, `ps`, `date`, `ls`, `mkdir`, `rmdir`, `touch`, `rm`, `write`, `cat`, `kill`, `kernel_info`, `bitmap`
+  - shell 組み込み: `cd`, `history`, `exit`
   - `ipc_rx`（`receiver`/`sender` モード）
 - カーネル終了
   - init プロセス終了時の shutdown 処理
@@ -90,8 +97,9 @@ make run
 - [Execv Argument Passing](./docs/execv-args.md)
 - [Shell Redirection](./docs/shell-redirection.md)
 - [VFS / RAMFS / VirtIO Block Storage](./docs/vfs.md)
+- [Procfs (`/proc` on RAMFS)](./docs/procfs.md)
 - [RTC / Time Syscall](./docs/rtc.md)
 - [Memory Map](./docs/memory-map.md)
 - [SV32 Paging](./docs/sv32.md)
 - [Page Table Mapping Path](./docs/page-table-path.md)
-- [Troubleshoot: Page Table Walk GDB手順](./docs/troubleshoot/page_table_walk_gdb.md)
+- [Kernel Operation Walkthrough](./docs/kernel-operation-walkthrough.md)

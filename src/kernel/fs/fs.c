@@ -60,6 +60,7 @@ struct vfs_mount {
 static struct vfs_mount mounts[VFS_MOUNT_MAX];
 static struct nodefs rootfs;
 static struct nodefs tmpfs;
+static struct nodefs procfs;
 static struct pfs_image pfs_work_img;
 
 static int console_read_fallback(void *buf, size_t size) {
@@ -736,22 +737,41 @@ void fs_init(void) {
     nodefs_init_instance(&tmpfs, 0);
     printf("OK\n");
 
-    printf("     [fs] mount: / -> rootfs ...");
+    // /proc is volatile RAMFS backend.
+    printf("     [fs] init procfs (volatile ramfs)...");
+    nodefs_init_instance(&procfs, 0);
+    printf("OK\n");
+
+    // mount rootfs
+    printf("     [fs] mount: rootfs -> / ...");
     if (vfs_mount("/", &nodefs_ops, &rootfs) < 0) {
         PANIC("failed to mount root fs");
     }
     printf("OK\n");
 
+    // mount tmpfs
     // Ensure mountpoint exists in root namespace for `ls /`.
     if (nodefs_resolve_path(&rootfs, "/tmp") < 0) {
         printf("     [fs] create mountpoint: /tmp ...");
         (void) nodefs_mkdir(&rootfs, "/tmp");
         printf("OK\n");
     }
-
-    printf("     [fs] mount: /tmp -> tmpfs ...");
+    printf("     [fs] mount: tmpfs -> /tmp ...");
     if (vfs_mount("/tmp", &nodefs_ops, &tmpfs) < 0) {
-        PANIC("failed to mount tmp fs");
+        PANIC("failed to mount tmpfs");
+    }
+    printf("OK\n");
+
+    // mount procfs
+    // Ensure mountpoint exists in root namespace for `ls /`.
+    if (nodefs_resolve_path(&rootfs, "/proc") < 0) {
+        printf("      [fs] create mountpoint: /proc ...");
+        (void) nodefs_mkdir(&rootfs, "/proc");
+        printf("OK\n");
+    }
+    printf("     [fs] mount: procfs -> /proc ...");
+    if (vfs_mount("/proc", &nodefs_ops, &procfs) < 0) {
+        PANIC("failed to mount procfs");
     }
     printf("OK\n");
 }
@@ -951,4 +971,36 @@ void fs_on_process_recycle(int pid) {
 
 uint32_t fs_get_pfs_image_blocks(void) {
     return (uint32_t) pfs_block_count();
+}
+
+int fs_get_root_entry(int *mount_idx, int *node_idx) {
+    if (!mount_idx || !node_idx) return -1;
+    struct vfs_mount *m = NULL;
+    const char *subpath = NULL;
+
+    if (vfs_resolve_mount("/", &m, &subpath) < 0) return -1;
+
+    struct nodefs *fs = (struct nodefs *)m->ctx;
+    int node = nodefs_resolve_path(fs, "/");
+    if (node < 0 || fs->nodes[node].type != FS_TYPE_DIR) return -1;
+
+    *mount_idx = fs->mount_idx;
+    *node_idx = node;
+    return 0;
+}
+
+int fs_get_path_entry(int *mount_idx, int *node_idx, const char *path) {
+    if (!mount_idx || !node_idx || !path) return -1;
+    struct vfs_mount *m = NULL;
+    const char *subpath = NULL;
+
+    if (vfs_resolve_mount(path, &m, &subpath) < 0) return -1;
+
+    struct nodefs *fs = (struct nodefs *)m->ctx;
+    int node = nodefs_resolve_path(fs, subpath);
+    if (node < 0 || fs->nodes[node].type != FS_TYPE_DIR) return -1;
+
+    *mount_idx = fs->mount_idx;
+    *node_idx = node;
+    return 0;
 }

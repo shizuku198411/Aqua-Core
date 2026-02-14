@@ -1,5 +1,6 @@
 #include "commonlibs.h"
 #include "user_syscall.h"
+#include "user_path.h"
 
 int main(int argc, char **argv) {
     bool detail = false;
@@ -26,17 +27,23 @@ int main(int argc, char **argv) {
         }
     }
 
-    char path[FS_NAME_MAX];
+    char path[FS_PATH_MAX];
+    const char *path_arg = NULL;
     if (argc == 1) {
-        strcpy(path, "/");
+        path_arg = ".";
     } else if (argc == 2) {
         if (detail || all_print) {
-            strcpy(path, "/");
+            path_arg = ".";
         } else {
-            strcpy(path, argv[1]);
+            path_arg = argv[1];
         }
     } else {
-        strcpy(path, argv[2]);
+        path_arg = argv[2];
+    }
+
+    if (user_path_resolve(path_arg, path, sizeof(path)) < 0) {
+        printf("resolve path failed\n");
+        return -1;
     }
 
     struct fs_dirent ent;

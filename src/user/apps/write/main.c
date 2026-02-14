@@ -1,5 +1,6 @@
 #include "user_syscall.h"
 #include "commonlibs.h"
+#include "user_path.h"
 
 int main(int argc, char **argv) {
     if (argc != 3) {
@@ -7,7 +8,13 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    int fd = fs_open(argv[1], O_CREAT | O_WRONLY | O_TRUNC);
+    char target[FS_PATH_MAX];
+    if (user_path_resolve(argv[1], target, sizeof(target)) < 0) {
+        printf("resolve path failed\n");
+        return -1;
+    }
+
+    int fd = fs_open(target, O_CREAT | O_WRONLY | O_TRUNC);
     if (fd < 0) {
         printf("open failed\n");
         return -1;

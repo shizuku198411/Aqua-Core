@@ -133,3 +133,11 @@ int dup2(int old_fd, int new_fd) {
 int getargs(struct exec_args *out) {
     return syscall(SYSCALL_GETARGS, (int) out, 0, 0);
 }
+
+int getcwd(char *cwd_path) {
+    return syscall(SYSCALL_GETCWD, (int) cwd_path, 0, 0);
+}
+
+int chdir(const char *path) {
+    return syscall(SYSCALL_CHDIR, (int) path, 0, 0);
+}

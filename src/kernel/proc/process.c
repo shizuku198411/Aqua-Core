@@ -44,6 +44,15 @@ static void clear_exec_args(struct process *proc) {
     }
 }
 
+static void procfs_sync_best_effort(const struct process *proc) {
+    if (!proc || proc->pid <= 0) {
+        return;
+    }
+    if (procfs_sync_process(proc) < 0) {
+        printf("procfs sync failed\n");
+    }
+}
+
 static void set_exec_args(struct process *proc,
                           int argc,
                           const char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN]) {
@@ -135,6 +144,9 @@ static void recycle_process_slot(struct process *proc) {
         return;
     }
 
+    if (procfs_cleanup(proc) < 0) {
+        printf("procfs cleanup failed\n");
+    }
     fs_on_process_recycle(proc->pid);
     free_process_memory(proc);
     proc->state = PROC_UNUSED;
@@ -263,15 +275,15 @@ struct process *create_process(const void *image, size_t image_size, const char 
         map_page(page_table, paddr, paddr, PAGE_R | PAGE_W | PAGE_X);
     }
 
-    // Map MMIO region for device access while running in process page table.
+    // map MMIO region for device access while running in process page table.
     for (paddr_t paddr = MMIO_BASE; paddr < MMIO_END; paddr += PAGE_SIZE) {
         map_page(page_table, paddr, paddr, PAGE_R | PAGE_W);
     }
-    // Map RTC MMIO
+    // map RTC MMIO
     for (paddr_t paddr = RTC_MMIO_BASE; paddr < RTC_MMIO_END; paddr += PAGE_SIZE) {
         map_page(page_table, paddr, paddr, PAGE_R | PAGE_W);
     }
-
+    // map user page
     uint32_t user_pages = (image_size + PAGE_SIZE - 1) / PAGE_SIZE;
     for (uint32_t off = 0; off < image_size; off += PAGE_SIZE) {
         paddr_t page = alloc_pages(1);
@@ -283,6 +295,13 @@ struct process *create_process(const void *image, size_t image_size, const char 
 
         map_page(page_table, USER_BASE + off, page,
                  PAGE_U | PAGE_R | PAGE_W | PAGE_X);
+    }
+
+    // get root mount/node index
+    int root_mount_idx, root_node_idx;
+    if (fs_get_root_entry(&root_mount_idx, &root_node_idx) < 0) {
+        recycle_process_slot(proc);
+        return NULL;
     }
 
     proc->pid = i;
@@ -301,6 +320,16 @@ struct process *create_process(const void *image, size_t image_size, const char 
     proc->ipc_from_pid = 0;
     proc->ipc_message = 0;
     clear_exec_args(proc);
+    proc->root_mount_idx = root_mount_idx;
+    proc->root_node_idx = root_node_idx;
+    strcpy_s(proc->root_path, FS_PATH_MAX, "/");
+    proc->cwd_mount_idx = root_mount_idx;
+    proc->cwd_node_idx = root_node_idx;
+    strcpy_s(proc->cwd_path, FS_PATH_MAX, "/");
+
+    // write process status to procfs
+    procfs_sync_best_effort(proc);
+
     return proc;
 }
 
@@ -388,6 +417,12 @@ int process_fork(struct trap_frame *parent_tf) {
             child->exec_argv[i][j] = current_proc->exec_argv[i][j];
         }
     }
+    child->root_mount_idx = current_proc->root_mount_idx;
+    child->root_node_idx = current_proc->root_node_idx;
+    strcpy_s(child->root_path, FS_PATH_MAX, current_proc->root_path);
+    child->cwd_mount_idx = current_proc->cwd_mount_idx;
+    child->cwd_node_idx = current_proc->cwd_node_idx;
+    strcpy_s(child->cwd_path, FS_PATH_MAX, current_proc->cwd_path);
 
     // child page table + user pages copy
     uint32_t *page_table = (uint32_t *)alloc_pages(1);
@@ -452,6 +487,9 @@ int process_fork(struct trap_frame *parent_tf) {
     child->run_ticks = 0;
     child->schedule_count = 0;
 
+    // sync procfs
+    procfs_sync_best_effort(child);
+
     return child->pid;
 
 fail:
@@ -513,6 +551,9 @@ int process_exec(const void *image,
     current_proc->time_slice = SCHED_TIME_SLICE_TICKS;
     current_proc->run_ticks = 0;
     set_exec_args(current_proc, argc, argv);
+
+    // sync procfs
+    procfs_sync_best_effort(current_proc);
 
     WRITE_CSR(sepc, USER_BASE);
 
@@ -603,6 +644,8 @@ void wakeup_input_waiters(void) {
             procs[i].wait_reason == PROC_WAIT_CONSOLE_INPUT) {
             procs[i].state = PROC_RUNNABLE;
             procs[i].wait_reason = PROC_WAIT_NONE;
+            procs[i].wait_pid = -1;
+            procfs_sync_best_effort(&procs[i]);
         }
     }
 }
@@ -627,6 +670,7 @@ void notify_child_exit(struct process *child) {
             proc->state = PROC_RUNNABLE;
             proc->wait_reason = PROC_WAIT_NONE;
             proc->wait_pid = -1;
+            procfs_sync_best_effort(proc);
         }
     }
 }
@@ -678,6 +722,7 @@ int wait_for_child_exit(int parent_pid, int target_pid) {
         current_proc->wait_reason = PROC_WAIT_CHILD_EXIT;
         current_proc->wait_pid = target_pid;
         current_proc->state = PROC_WAITTING;
+        procfs_sync_best_effort(current_proc);
         yield();
     }
 }
@@ -700,6 +745,8 @@ int process_ipc_send(int src_pid, int dst_pid, uint32_t message) {
     if (dst->state == PROC_WAITTING && dst->wait_reason == PROC_WAIT_IPC_RECV) {
         dst->state = PROC_RUNNABLE;
         dst->wait_reason = PROC_WAIT_NONE;
+        dst->wait_pid = -1;
+        procfs_sync_best_effort(dst);
     }
 
     return 0;
@@ -716,6 +763,7 @@ int process_ipc_recv(int self_pid, int *from_pid, uint32_t *message) {
         self->wait_reason = PROC_WAIT_IPC_RECV;
         self->wait_pid = -1;
         self->state = PROC_WAITTING;
+        procfs_sync_best_effort(self);
         yield();
     }
 
@@ -751,6 +799,7 @@ int process_kill(int target_pid) {
     target->state = PROC_EXITED;
     target->wait_reason = PROC_WAIT_NONE;
     target->wait_pid = -1;
+    procfs_sync_best_effort(target);
     notify_child_exit(target);
 
     if (target == current_proc) {
@@ -764,6 +813,92 @@ int process_kill(int target_pid) {
     target->parent_pid = 0;
     recycle_process_slot(target);
     return killed_pid;
+}
+
+static const char *proc_state_str(int state) {
+    switch (state) {
+        case PROC_UNUSED:   return "UNUSED";
+        case PROC_RUNNABLE: return "RUN";
+        case PROC_WAITTING: return "WAIT";
+        case PROC_EXITED:   return "EXIT";
+        default:            return "UNKNOWN";
+    }
+}
+
+static const char *proc_wait_reason_str(int wait_reason) {
+    switch (wait_reason) {
+        case PROC_WAIT_NONE:          return "NONE";
+        case PROC_WAIT_CONSOLE_INPUT: return "CONSOLE_INPUT";
+        case PROC_WAIT_CHILD_EXIT:    return "CHILD_EXIT";
+        case PROC_WAIT_IPC_RECV:      return "IPC_RECV";
+        default:                      return "UNKNOWN";
+    }
+}
+
+static int str_len_k(const char *s) {
+    int n = 0;
+    while (s && s[n] != '\0') {
+        n++;
+    }
+    return n;
+}
+
+static int append_char_k(char *out, size_t out_size, size_t *pos, char c) {
+    if (!out || !pos || *pos + 1 >= out_size) {
+        return -1;
+    }
+    out[*pos] = c;
+    (*pos)++;
+    out[*pos] = '\0';
+    return 0;
+}
+
+static int append_str_k(char *out, size_t out_size, size_t *pos, const char *s) {
+    if (!s) {
+        return append_str_k(out, out_size, pos, "(null)");
+    }
+    while (*s) {
+        if (append_char_k(out, out_size, pos, *s++) < 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int append_u32_k(char *out, size_t out_size, size_t *pos, uint32_t v) {
+    char tmp[10];
+    int n = 0;
+    if (v == 0) {
+        return append_char_k(out, out_size, pos, '0');
+    }
+    while (v > 0 && n < (int) sizeof(tmp)) {
+        tmp[n++] = (char) ('0' + (v % 10));
+        v /= 10;
+    }
+    for (int i = n - 1; i >= 0; i--) {
+        if (append_char_k(out, out_size, pos, tmp[i]) < 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int append_key_val_u32(char *out, size_t out_size, size_t *pos,
+                              const char *key, uint32_t value) {
+    if (append_str_k(out, out_size, pos, key) < 0) return -1;
+    if (append_str_k(out, out_size, pos, ":\t") < 0) return -1;
+    if (append_u32_k(out, out_size, pos, value) < 0) return -1;
+    if (append_char_k(out, out_size, pos, '\n') < 0) return -1;
+    return 0;
+}
+
+static int append_key_val_str(char *out, size_t out_size, size_t *pos,
+                              const char *key, const char *value) {
+    if (append_str_k(out, out_size, pos, key) < 0) return -1;
+    if (append_str_k(out, out_size, pos, ":\t") < 0) return -1;
+    if (append_str_k(out, out_size, pos, value) < 0) return -1;
+    if (append_char_k(out, out_size, pos, '\n') < 0) return -1;
+    return 0;
 }
 
 struct process *process_from_trap_frame(struct trap_frame *f) {
@@ -782,4 +917,77 @@ struct process *process_from_trap_frame(struct trap_frame *f) {
     }
 
     return NULL;
+}
+
+int procfs_sync_process(const struct process *proc) {
+    if (!proc) {
+        return -1;
+    }
+    if (proc->pid <= 0 || proc->pid >= PROCS_MAX) {
+        return -1;
+    }
+
+    char dir_path[FS_PATH_MAX];
+    char status_path[FS_PATH_MAX];
+    char content[256];
+    size_t pos = 0;
+
+    // Ensure /proc/<pid> exists (ignore EEXIST-like failures).
+    dir_path[0] = '\0';
+    strcat_s(dir_path, sizeof(dir_path), "/proc/");
+    pos = (size_t) str_len_k(dir_path);
+    if (append_u32_k(dir_path, sizeof(dir_path), &pos, (uint32_t) proc->pid) < 0) {
+        return -1;
+    }
+    (void) fs_mkdir(dir_path);
+
+    strcpy_s(status_path, sizeof(status_path), dir_path);
+    strcat_s(status_path, sizeof(status_path), "/status");
+
+    content[0] = '\0';
+    pos = 0;
+    if (append_key_val_u32(content, sizeof(content), &pos, "pid", (uint32_t) proc->pid) < 0) return -1;
+    if (append_key_val_u32(content, sizeof(content), &pos, "ppid", (uint32_t) proc->parent_pid) < 0) return -1;
+    if (append_key_val_str(content, sizeof(content), &pos, "name", proc->name) < 0) return -1;
+    if (append_key_val_u32(content, sizeof(content), &pos, "state_id", (uint32_t) proc->state) < 0) return -1;
+    if (append_key_val_str(content, sizeof(content), &pos, "state", proc_state_str(proc->state)) < 0) return -1;
+    if (append_key_val_u32(content, sizeof(content), &pos, "wait_reason_id", (uint32_t) proc->wait_reason) < 0) return -1;
+    if (append_key_val_str(content, sizeof(content), &pos, "wait_reason", proc_wait_reason_str(proc->wait_reason)) < 0) return -1;
+    if (append_key_val_str(content, sizeof(content), &pos, "cwd", proc->cwd_path) < 0) return -1;
+
+    int fd = fs_open(proc->pid, status_path, O_CREAT | O_WRONLY | O_TRUNC);
+    if (fd < 0) {
+        return -1;
+    }
+
+    int len = str_len_k(content);
+    int written = fs_write(proc->pid, fd, content, (size_t) len);
+    (void) fs_close(proc->pid, fd);
+    return (written == len) ? 0 : -1;
+}
+
+int procfs_cleanup(const struct process *proc) {
+    if (!proc) {
+        return -1;
+    }
+    if (proc->pid <= 0 || proc->pid >= PROCS_MAX) {
+        return -1;
+    }
+
+    char dir_path[FS_PATH_MAX];
+    char status_path[FS_PATH_MAX];
+    size_t pos = 0;
+    dir_path[0] = '\0';
+    strcat_s(dir_path, sizeof(dir_path), "/proc/");
+    pos = (size_t) str_len_k(dir_path);
+    if (append_u32_k(dir_path, sizeof(dir_path), &pos, (uint32_t) proc->pid) < 0) {
+        return -1;
+    }
+    strcpy_s(status_path, sizeof(status_path), dir_path);
+    strcat_s(status_path, sizeof(status_path), "/status");
+
+    (void) fs_unlink(status_path);
+    (void) fs_rmdir(dir_path);
+
+    return 0;
 }

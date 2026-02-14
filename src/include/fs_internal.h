@@ -15,3 +15,5 @@ int fs_rmdir(const char *path);
 void fs_on_process_recycle(int pid);
 uint32_t fs_get_pfs_image_blocks(void);
 int fs_dup2(int pid, int old_fd, int new_fd);
+int fs_get_root_entry(int *mount_idx, int *node_idx);
+int fs_get_path_entry(int *mount_idx, int *node_idx, const char *path);

@@ -82,7 +82,7 @@ BITMAP_ELF := $(BIN_DIR)/bitmap.elf
 BITMAP_BIN := $(BIN_DIR)/bitmap.bin
 BITMAP_OBJ := $(OBJ_DIR)/bitmap.bin.o
 
-.PHONY: all build run start debug release run-debug run-release start-debug start-release clean distclean dirs disk
+.PHONY: all build run start debug release run-debug run-release start-debug start-release qemu-debug clean distclean dirs disk
 
 all: build
 
@@ -298,6 +298,12 @@ start-debug:
 
 start-release:
 	$(MAKE) start CPPFLAGS=
+
+qemu-debug:
+	$(QEMU) $(QEMU_OPT) -S -s \
+		-drive file=$(DISK_IMG),if=none,format=raw,id=hd0 \
+		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
+		-kernel $(KERNEL_ELF)
 
 clean:
 	rm -f $(KERNEL_ELF) \

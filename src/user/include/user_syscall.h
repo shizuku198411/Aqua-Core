@@ -30,4 +30,6 @@ int exec(int app_id);
 int execv(int app_id, const char **argv);
 int dup2(int old_fd, int new_fd);
 int getargs(struct exec_args *out);
+int getcwd(char *cwd_path);
+int chdir(const char *path);
 __attribute__((noreturn)) void exit(void);
