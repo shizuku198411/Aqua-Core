@@ -144,6 +144,9 @@ static void recycle_process_slot(struct process *proc) {
         return;
     }
 
+    if (procfs_cleanup(proc) < 0) {
+        printf("procfs cleanup failed\n");
+    }
     fs_on_process_recycle(proc->pid);
     free_process_memory(proc);
     proc->state = PROC_UNUSED;
@@ -961,4 +964,30 @@ int procfs_sync_process(const struct process *proc) {
     int written = fs_write(proc->pid, fd, content, (size_t) len);
     (void) fs_close(proc->pid, fd);
     return (written == len) ? 0 : -1;
+}
+
+int procfs_cleanup(const struct process *proc) {
+    if (!proc) {
+        return -1;
+    }
+    if (proc->pid <= 0 || proc->pid >= PROCS_MAX) {
+        return -1;
+    }
+
+    char dir_path[FS_PATH_MAX];
+    char status_path[FS_PATH_MAX];
+    size_t pos = 0;
+    dir_path[0] = '\0';
+    strcat_s(dir_path, sizeof(dir_path), "/proc/");
+    pos = (size_t) str_len_k(dir_path);
+    if (append_u32_k(dir_path, sizeof(dir_path), &pos, (uint32_t) proc->pid) < 0) {
+        return -1;
+    }
+    strcpy_s(status_path, sizeof(status_path), dir_path);
+    strcat_s(status_path, sizeof(status_path), "/status");
+
+    (void) fs_unlink(status_path);
+    (void) fs_rmdir(dir_path);
+
+    return 0;
 }
