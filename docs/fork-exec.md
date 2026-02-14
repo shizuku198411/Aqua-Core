@@ -23,6 +23,9 @@
 - `exec(app_id)`
   - 現在プロセスのユーザ空間を新イメージへ置換
   - PIDは維持
+- `execv(app_id, argv)`
+  - `exec` と同様にイメージ置換
+  - 追加で引数をカーネル経由で次イメージへ受け渡す
 
 ## 1. fork の実装
 
@@ -77,6 +80,8 @@ f->a0 = (child_pid < 0) ? -1 : child_pid;
 
 `syscall_handle_exec()` は `app_id -> image/name` を解決し、`process_exec(image, size, name)` を呼ぶ。
 
+`syscall_handle_execv()` は `exec` に加えて `argv` を受け取り、`process_exec(image, size, name, argc, argv_copy)` を呼ぶ。
+
 ### 2.2 ユーザ空間置換
 
 `process_exec()` では:
@@ -94,6 +99,32 @@ f->a0 = (child_pid < 0) ? -1 : child_pid;
 - `SYSCALL_EXEC` 成功時: `user_pc = USER_BASE`
 
 として復帰先を切り替える。
+
+`execv` も同様に成功時は `user_pc = USER_BASE` へ切り替える。
+
+### 2.4 execv の引数受け渡し
+
+現在実装は「ユーザスタック直構築」ではなく、`process` 構造体へ引数を保持する方式。
+
+流れ:
+
+1. user `execv(app_id, argv)`  
+  - syscall ABI で `a0=app_id`, `a1=argv_ptr`, `a3=SYSCALL_EXECV`
+2. kernel `syscall_handle_execv`  
+  - `SSTATUS_SUM` を有効化してユーザ `argv` を読み取り
+  - `copy_user_argv()` で固定長バッファへコピー
+3. `process_exec(..., argc, argv_copy)`  
+  - `current_proc->exec_argc/exec_argv` を更新
+4. 新イメージ起動後、ユーザランタイムが `getargs()` を呼び `main(argc, argv)` へ渡す
+
+制約:
+
+- 引数最大数: `PROC_EXEC_ARGV_MAX`（現状 8）
+- 1引数最大長: `PROC_EXEC_ARG_LEN-1`（現状 31 文字）
+
+補足:
+
+- 詳細は [Execv Argument Passing](./execv-args.md) を参照。
 
 ## 3. テスト
 
@@ -118,4 +149,5 @@ shell の `fork_test` で親子戻り値と `waitpid` を確認。
 
 - `fork` は COW ではなくページ全コピー
 - `exec` は `app_id` 指定のみ（path指定なし）
+- `execv` 引数は固定長配列経由（POSIX の argv/envp スタック配置ではない）
 - FD継承/close-on-exec の詳細は未実装（Issue 4以降）

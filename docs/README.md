@@ -36,5 +36,5 @@
   - 2段ページテーブル、アドレス計算、マッピング、QEMU/GDB での VA/PA 追跡
 - [Page Table Mapping Path](./page-table-path.md)
   - page_tableの配置、kernel/user/MMIOマップ、`satp` 切替とCPUページウォーク経路
-- [Troubleshoot: Page Table Walk GDB手順](./troubleshoot/page_table_walk_gdb.md)
+- [Troubleshoot: Page Table Walk GDB手順](./troubleshoot/gdb/page_table_walk_gdb.md)
   - `stval/sepc/satp` からの手動ページウォーク、コマンド一覧、実例
