@@ -4,26 +4,6 @@
 #include "syscall.h"
 #include "user_syscall.h"
 
-void shell_cmd_ps(void) {
-    shell_printf("PID\tPPID\tAPP\tSTATE\tREASON\n");
-    for (int i = 1;; i++) {
-        struct ps_info info;
-        int ret = ps(i, &info);
-        if (ret < 0) {
-            break;
-        }
-        if (info.state == PROC_UNUSED) {
-            continue;
-        }
-        shell_printf("%d\t%d\t%s\t%s\t%s\n",
-               info.pid,
-               info.parent_pid,
-               info.name,
-               proc_state_to_string(info.state),
-               proc_wait_reason_to_string(info.wait_reason));
-    }
-}
-
 void shell_cmd_kill(int argc, char **argv) {
     if (argc != 2) {
         shell_printf("target pid is required. kill <pid>\n");
@@ -54,14 +34,6 @@ void shell_cmd_kill(int argc, char **argv) {
     }
 }
 
-void shell_cmd_ipc_start(void) {
-    int pid = spawn(APP_ID_IPC_RX);
-    if (pid < 0) {
-        shell_printf("failed to spawn ipc_rx\n");
-    } else {
-        shell_printf("ipc_rx pid=%d\n", pid);
-    }
-}
 
 void shell_cmd_ipc_send(const char *pid_s, const char *msg_s) {
     int pid = 0;

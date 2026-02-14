@@ -25,3 +25,5 @@ void syscall_handle_gettime(struct trap_frame *f);
 void syscall_handle_fork(struct trap_frame *f);
 void syscall_handle_exec(struct trap_frame *f);
 void syscall_handle_dup2(struct trap_frame *f);
+void syscall_handle_execv(struct trap_frame *f);
+void syscall_handle_getargs(struct trap_frame *f);

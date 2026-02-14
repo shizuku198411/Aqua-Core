@@ -9,8 +9,12 @@
 #include "commands_proc.h"
 #include "commands_sys.h"
 #include "syscall.h"
+#include "user_apps.h"
+#include "fs.h"
 
-void main(void) {
+int main(int shell_argc, char **shell_argv) {
+    (void) shell_argc;
+    (void) shell_argv;
     history_load();
 
     while (1) {
@@ -131,7 +135,7 @@ prompt:
                 goto prompt;
             }
             if (fd_in != 0) {
-                if (dup2(fd_in, 0) < 0) {
+                if (dup2(fd_in, STDIN) < 0) {
                     printf("dup2 failed\n");
                     fs_close(fd_in);
                     goto prompt;
@@ -147,7 +151,7 @@ prompt:
                 goto prompt;
             }
             if (fd_out != 1) {
-                if (dup2(fd_out, 1) < 0) {
+                if (dup2(fd_out, STDOUT) < 0) {
                     printf("dup2 failed\n");
                     fs_close(fd_out);
                     if (stdin_redirected) {
@@ -160,69 +164,13 @@ prompt:
             stdout_redirected = true;
         }
 
-        if (strcmp(argv[0], "mkdir") == 0 && argc == 2) {
-            shell_cmd_mkdir(argv[1]);
-        }
-
-        else if (strcmp(argv[0], "rmdir") == 0 && argc == 2) {
-            shell_cmd_rmdir(argv[1]);
-        }
-
-        else if (strcmp(argv[0], "touch") == 0 && argc == 2) {
-            shell_cmd_touch(argv[1]);
-        }
-
-        else if (strcmp(argv[0], "rm") == 0 && argc == 2) {
-            shell_cmd_rm(argv[1]);
-        }
-
-        else if (strcmp(argv[0], "write") == 0 && argc == 3) {
-            shell_cmd_write(argv[1], argv[2]);
-        }
-
-        else if (strcmp(argv[0], "cat") == 0 && argc == 2) {
-            shell_cmd_cat(argv[1]);
-        }
-
-        else if (strcmp(argv[0], "ls") == 0 && (argc == 1 || argc == 2 || argc == 3)) {
-            shell_cmd_ls(argc, argv);
-        }
-
-        else if (strcmp(argv[0], "ps") == 0 && argc == 1) {
-            shell_cmd_ps();
-        }
-
-        else if (strcmp(argv[0], "kill") == 0) {
-            shell_cmd_kill(argc, argv);
-        }
-
-        else if (strcmp(argv[0], "ipc_start") == 0 && argc == 1) {
-            shell_cmd_ipc_start();
-        }
-
-        else if (strcmp(argv[0], "ipc_send") == 0 && argc == 3) {
-            shell_cmd_ipc_send(argv[1], argv[2]);
-        }
-
-        else if (strcmp(argv[0], "kernel_info") == 0 && argc == 1) {
-            shell_cmd_kernel_info();
-        }
-
-        else if (strcmp(argv[0], "history") == 0 && argc == 1) {
+        if (strcmp(argv[0], "history") == 0 && argc == 1) {
             shell_cmd_history();
         }
 
-        else if (strcmp(argv[0], "bitmap") == 0 && argc == 1) {
-            shell_cmd_bitmap();
-        }
-
-        else if (strcmp(argv[0], "date") == 0 && argc == 1) {
-            shell_cmd_gettime();
-        }
-
-        else if (strcmp(argv[0], "shutdown") == 0 && argc == 1) {
+        else if (strcmp(argv[0], "exit") == 0 && argc == 1) {
             history_write();
-            shell_cmd_shutdown();
+            shell_cmd_exit();
         }
 
         #ifdef DEBUG
@@ -305,10 +253,13 @@ prompt:
         #endif
 
         else {
-            printf("command not found.\n");
+            bool background = is_background(argv, argc);
+            run_external(argv, argc, background);
         }
 
-        if (stdout_redirected) fs_close(1);
-        if (stdin_redirected) fs_close(0);
+        if (stdout_redirected) fs_close(STDOUT);
+        if (stdin_redirected) fs_close(STDIN);
     }
+
+    return 0;
 }

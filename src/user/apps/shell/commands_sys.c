@@ -47,19 +47,6 @@ void shell_cmd_bitmap(void) {
     shell_printf("bitmap: total=%d/used=%d/free=%d\n", total, used, (total - used));
 }
 
-void shell_cmd_gettime(void) {
-    struct time_spec info;
-    int ret = gettime(&info);
-    if (ret < 0) {
-        return;
-    }
-
-    uint64_t sec = ((uint64_t) info.sec_hi << 32) | info.sec_lo;
-    char ts[40];
-    unix_time_to_utc_str(sec, ts, sizeof(ts));
-    shell_printf("%s\n", ts);
-}
-
 void shell_cmd_stdin_test(void) {
     char buf[64];
     int total = 0;
@@ -77,6 +64,6 @@ void shell_cmd_stdin_test(void) {
 }
 
 __attribute__((noreturn))
-void shell_cmd_shutdown(void) {
+void shell_cmd_exit(void) {
     exit();
 }

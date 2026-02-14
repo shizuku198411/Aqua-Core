@@ -137,14 +137,17 @@ void kernel_shutdown(void) {
 
 
 void banner(void) {
+    #define CONSOLE_BLUE  "\033[34m"
+    #define CONSOLE_RESET "\033[0m"
     printf("\n\n");
-    printf("\033[34m");
-    printf("                /\\     \n");
-    printf("               /  \\    \n");
-    printf("              / \033[0m/\\ \033[34m\\   \n");
-    printf("              \\_\033[0m\\/\033[34m_/   \n\n");
-    printf("\033[0m");
-    printf("    Welcome to \033[34mAquaCore\033[0m %s\n\n", KERNEL_VERSION);
+    printf(CONSOLE_BLUE);
+    printf("                 /\\\n");
+    printf("                /  \\\n");
+    printf("               / %s__ %s\\\n", CONSOLE_RESET, CONSOLE_BLUE);
+    printf("              / %s/  \\ %s\\\n", CONSOLE_RESET, CONSOLE_BLUE);
+    printf("              \\_%s\\__/%s_/\n\n", CONSOLE_RESET, CONSOLE_BLUE);
+    printf(CONSOLE_RESET);
+    printf("    Welcome to %sAquaCore%s %s\n\n", CONSOLE_BLUE, CONSOLE_RESET, KERNEL_VERSION);
 }
 
 

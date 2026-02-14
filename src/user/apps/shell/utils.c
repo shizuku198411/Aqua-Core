@@ -1,7 +1,9 @@
 #include "shell.h"
+#include "syscall.h"
 #include "commonlibs.h"
 #include "process.h"
 #include "user_syscall.h"
+#include "user_apps.h"
 
 static int shell_output_fd = -1;
 static int shell_input_fd = -1;
@@ -109,35 +111,6 @@ void shell_printf(const char *fmt, ...) {
 
 end:
     va_end(vargs);
-}
-
-char *proc_state_to_string(int state) {
-    switch (state) {
-        case PROC_RUNNABLE:
-            return "RUN";
-        case PROC_WAITTING:
-            return "WAIT";
-        case PROC_EXITED:
-            return "EXIT";
-        case PROC_UNUSED:
-        default:
-            return "UNUSED";
-    }
-}
-
-char *proc_wait_reason_to_string(int wait_reason) {
-    switch (wait_reason) {
-        case PROC_WAIT_CHILD_EXIT:
-            return "CHILD_EXIT";
-        case PROC_WAIT_CONSOLE_INPUT:
-            return "CONSOLE_INPUT";
-        case PROC_WAIT_IPC_RECV:
-            return "IPC_RECV";
-        case PROC_WAIT_NONE:
-            return "";
-        default:
-            return "UNKNOWN";
-    }
 }
 
 
@@ -390,4 +363,110 @@ void history_write(void) {
         printf("write failed\n");
     }
     fs_close(fd);
+}
+
+bool is_background(char **argv, int argc) {
+    if (strcmp(argv[argc-1], "&") == 0) {
+        return true;
+    }
+    return false;
+}
+
+static int app_map(const char *name) {
+    if (strcmp(name, APP_NAME_SHELL) == 0) {
+        return APP_ID_SHELL;
+    }
+    else if (strcmp(name, APP_NAME_IPC_RX) == 0) {
+        return APP_ID_IPC_RX;
+    }
+    else if (strcmp(name, APP_NAME_PS) == 0) {
+        return APP_ID_PS;
+    }
+    else if (strcmp(name, APP_NAME_DATE) == 0) {
+        return APP_ID_DATE;
+    }
+    else if (strcmp(name, APP_NAME_LS) == 0) {
+        return APP_ID_LS;
+    }
+    else if (strcmp(name, APP_NAME_MKDIR) == 0) {
+        return APP_ID_MKDIR;
+    }
+    else if (strcmp(name, APP_NAME_RMDIR) == 0) {
+        return APP_ID_RMDIR;
+    }
+    else if (strcmp(name, APP_NAME_TOUCH) == 0) {
+        return APP_ID_TOUCH;
+    }
+    else if (strcmp(name, APP_NAME_RM) == 0) {
+        return APP_ID_RM;
+    }
+    else if (strcmp(name, APP_NAME_WRITE) == 0) {
+        return APP_ID_WRITE;
+    }
+    else if (strcmp(name, APP_NAME_CAT) == 0) {
+        return APP_ID_CAT;
+    }
+    else if (strcmp(name, APP_NAME_KILL) == 0) {
+        return APP_ID_KILL;
+    }
+    else if (strcmp(name, APP_NAME_KERNEL_INFO) == 0) {
+        return APP_ID_KERNEL_INFO;
+    }
+    else if (strcmp(name, APP_NAME_BITMAP) == 0) {
+        return APP_ID_BITMAP;
+    }
+    else {
+        return -1;
+    }
+}
+
+int run_external(char **argv, int argc, bool background) {
+    if (!argv || argc <= 0) {
+        return -1;
+    }
+
+    if (background && argc > 0 && strcmp(argv[argc - 1], "&") == 0) {
+        argc--;
+    }
+
+    const char *exec_argv[PROC_EXEC_ARGV_MAX + 1];
+    int exec_argc = argc;
+    if (exec_argc > PROC_EXEC_ARGV_MAX) {
+        exec_argc = PROC_EXEC_ARGV_MAX;
+    }
+    for (int i = 0; i < exec_argc; i++) {
+        exec_argv[i] = argv[i];
+    }
+    exec_argv[exec_argc] = NULL;
+
+    int app_id = app_map(argv[0]);
+    if (app_id < 0) {
+        printf("command not found\n");
+        return -1;
+    }
+
+    int pid = fork();
+    if (pid < 0) {
+        printf("fork failed\n");
+        return -1;
+    }
+
+    // child
+    if (pid == 0) {
+        int ret = execv(app_id, exec_argv);
+        if (ret < 0) {
+            printf("exec failed\n");
+            exit();
+        }
+        exit();
+    }
+
+    // parent
+    if (!background) {
+        int waited = waitpid(pid);
+        (void)waited;
+    } else {
+        printf("[bg] pid=%d\n", pid);
+    }
+    return pid;
 }
