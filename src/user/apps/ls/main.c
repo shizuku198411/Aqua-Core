@@ -1,5 +1,6 @@
 #include "commonlibs.h"
 #include "user_syscall.h"
+#include "user_path.h"
 
 int main(int argc, char **argv) {
     bool detail = false;
@@ -27,37 +28,22 @@ int main(int argc, char **argv) {
     }
 
     char path[FS_PATH_MAX];
-    char cwd_path[FS_PATH_MAX];
-    if (getcwd(cwd_path) < 0) {
-        printf("get cwd failed\n");
-        return -1;
-    }
+    const char *path_arg = NULL;
     if (argc == 1) {
-        strcpy_s(path, FS_PATH_MAX, cwd_path);
+        path_arg = ".";
     } else if (argc == 2) {
         if (detail || all_print) {
-            strcpy_s(path, FS_PATH_MAX, cwd_path);
+            path_arg = ".";
         } else {
-            if (argv[1][0] != '/') {
-                strcpy_s(path, FS_PATH_MAX, cwd_path);
-                if (strcmp(cwd_path, "/") != 0) {
-                    strcat_s(path, FS_PATH_MAX, "/");
-                }
-                strcat_s(path, FS_PATH_MAX, argv[1]);
-            } else {
-                strcpy_s(path, FS_PATH_MAX, argv[1]);
-            }
+            path_arg = argv[1];
         }
     } else {
-        if (argv[2][0] != '/') {
-            strcpy_s(path, FS_PATH_MAX, cwd_path);
-            if (strcmp(cwd_path, "/") != 0) {
-                strcat_s(path, FS_PATH_MAX, "/");
-            }
-            strcat_s(path, FS_PATH_MAX, argv[2]);
-        } else {
-            strcpy_s(path, FS_PATH_MAX, argv[2]);
-        }
+        path_arg = argv[2];
+    }
+
+    if (user_path_resolve(path_arg, path, sizeof(path)) < 0) {
+        printf("resolve path failed\n");
+        return -1;
     }
 
     struct fs_dirent ent;
