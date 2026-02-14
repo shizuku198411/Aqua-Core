@@ -26,6 +26,8 @@
   - / と /tmp の共存、永続化PFS、virtio-blk、障害原因と対策
 - [Procfs (`/proc` on RAMFS)](./procfs.md)
   - `/proc/<pid>/status` の生成/同期/cleanup、状態遷移の観測、既知制約と次段階
+- [Kernel Operation Walkthrough](./kernel-operation-walkthrough.md)
+  - shell操作と kernel 内部処理（fork/exec/wait/cwd/procfs）の対応イメージ
 - [RTC / Time Syscall](./rtc.md)
   - Goldfish RTCドライバ、`gettime` syscall、`date` コマンド、64-bit秒対応
 - [Memory Map](./memory-map.md)
