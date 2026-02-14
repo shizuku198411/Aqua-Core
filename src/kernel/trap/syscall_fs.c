@@ -179,3 +179,34 @@ void syscall_handle_getcwd(struct trap_frame *f) {
 
     f->a0 = 0;
 }
+
+void syscall_handle_chdir(struct trap_frame *f) {
+    if (!current_proc) {
+        f->a0 = -1;
+        return;
+    }
+
+    const char *user_path = (const char *) f->a0;
+    if (!user_path) {
+        f->a0 = -1;
+        return;
+    }
+
+    char path[FS_PATH_MAX];
+    uint32_t sstatus = READ_CSR(sstatus);
+    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
+    strcpy_s(path, sizeof(path), user_path);
+    WRITE_CSR(sstatus, sstatus);
+
+    int mount_idx, node_idx;
+    if (fs_get_path_entry(&mount_idx, &node_idx, path) < 0) {
+        f->a0 = -1;
+        return;
+    }
+
+    current_proc->cwd_mount_idx = mount_idx;
+    current_proc->cwd_node_idx = node_idx;
+    strcpy_s(current_proc->cwd_path, FS_PATH_MAX, path);
+
+    f->a0 = 0;
+}

@@ -22,6 +22,7 @@ static const char *shell_app_names[] = {
     APP_NAME_RM,
     APP_NAME_WRITE,
     APP_NAME_CAT,
+    "cd",
     APP_NAME_KILL,
     APP_NAME_KERNEL_INFO,
     APP_NAME_BITMAP,
@@ -343,6 +344,22 @@ prompt:
 
         if (strcmp(argv[0], "history") == 0 && argc == 1) {
             shell_cmd_history();
+        }
+
+        else if (strcmp(argv[0], "cd") == 0) {
+            if (is_background(argv, argc)) {
+                printf("cd: background execution is not supported\n");
+            } else if (argc != 2) {
+                printf("usage: cd <path>\n");
+            } else if (shell_cmd_cd(argv[1]) < 0) {
+                printf("chdir failed\n");
+            }
+        }
+
+        else if (strcmp(argv[0], "pwd") == 0) {
+            if (shell_cmd_pwd() < 0) {
+                printf("pwd failed\n");
+            }
         }
 
         else if (strcmp(argv[0], "exit") == 0 && argc == 1) {

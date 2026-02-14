@@ -109,6 +109,10 @@ void handle_syscall(struct trap_frame *f) {
             syscall_handle_getcwd(f);
             break;
 
+        case SYSCALL_CHDIR:
+            syscall_handle_chdir(f);
+            break;
+
         default:
             PANIC("undefined system call");
     }

@@ -1,6 +1,7 @@
 #include "commands_sys.h"
 #include "commonlibs.h"
 #include "user_syscall.h"
+#include "user_path.h"
 #include "shell.h"
 #include "fs.h"
 
@@ -42,6 +43,28 @@ int shell_cmd_write_file(const char *path, const char *text) {
         shell_printf("write failed\n");
         return -1;
     }
+    return 0;
+}
+
+int shell_cmd_cd(const char *path) {
+    if (!path) {
+        return -1;
+    }
+
+    char target[FS_PATH_MAX];
+    if (user_path_resolve(path, target, sizeof(target)) < 0) {
+        return -1;
+    }
+
+    return chdir(target);
+}
+
+int shell_cmd_pwd(void) {
+    char target[FS_PATH_MAX];
+    if (getcwd(target) < 0) {
+        return -1;
+    }
+    printf("%s\n", target);
     return 0;
 }
 
