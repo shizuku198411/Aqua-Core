@@ -12,7 +12,7 @@
 - [SV32 Paging](./sv32.md)
 - [Memory Map](./memory-map.md)
 - [Memory / Process](./memory-process.md)
-- [Troubleshoot: Page Table Walk GDB手順](./troubleshoot/page_table_walk_gdb.md)
+- [Troubleshoot: Page Table Walk GDB手順](./troubleshoot/gdb/page_table_walk_gdb.md)
 
 ## 1. 概要
 
