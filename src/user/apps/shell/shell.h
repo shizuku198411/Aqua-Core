@@ -5,10 +5,13 @@
 #define CMDLINE_MAX 64
 #define HISTORY_MAX 64
 
+#define CONSOLE_BLUE  "\033[34m"
+#define CONSOLE_WHITE "\033[0m"
+
 int split_args(char *line, char **argv, int argv_max);
 int parse_int(const char *s, int *out);
 int parse_redirection(char **argv, int argc, char **exec_argv, int *exec_argc, char **in_path, char **out_path);
-void redraw_cmdline(const char *line, int cursor_pos);
+void redraw_cmdline(const char *line, int cursor_pos, char *cwd_path);
 int str_len(const char *s);
 void shell_set_input_fd(int fd);
 void shell_reset_input_fd(void);

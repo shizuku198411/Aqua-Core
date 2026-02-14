@@ -263,15 +263,15 @@ struct process *create_process(const void *image, size_t image_size, const char 
         map_page(page_table, paddr, paddr, PAGE_R | PAGE_W | PAGE_X);
     }
 
-    // Map MMIO region for device access while running in process page table.
+    // map MMIO region for device access while running in process page table.
     for (paddr_t paddr = MMIO_BASE; paddr < MMIO_END; paddr += PAGE_SIZE) {
         map_page(page_table, paddr, paddr, PAGE_R | PAGE_W);
     }
-    // Map RTC MMIO
+    // map RTC MMIO
     for (paddr_t paddr = RTC_MMIO_BASE; paddr < RTC_MMIO_END; paddr += PAGE_SIZE) {
         map_page(page_table, paddr, paddr, PAGE_R | PAGE_W);
     }
-
+    // map user page
     uint32_t user_pages = (image_size + PAGE_SIZE - 1) / PAGE_SIZE;
     for (uint32_t off = 0; off < image_size; off += PAGE_SIZE) {
         paddr_t page = alloc_pages(1);
@@ -283,6 +283,13 @@ struct process *create_process(const void *image, size_t image_size, const char 
 
         map_page(page_table, USER_BASE + off, page,
                  PAGE_U | PAGE_R | PAGE_W | PAGE_X);
+    }
+
+    // get root mount/node index
+    int root_mount_idx, root_node_idx;
+    if (fs_get_root_entry(&root_mount_idx, &root_node_idx) < 0) {
+        recycle_process_slot(proc);
+        return NULL;
     }
 
     proc->pid = i;
@@ -301,6 +308,12 @@ struct process *create_process(const void *image, size_t image_size, const char 
     proc->ipc_from_pid = 0;
     proc->ipc_message = 0;
     clear_exec_args(proc);
+    proc->root_mount_idx = root_mount_idx;
+    proc->root_node_idx = root_node_idx;
+    strcpy_s(proc->root_path, FS_PATH_MAX, "/");
+    proc->cwd_mount_idx = root_mount_idx;
+    proc->cwd_node_idx = root_node_idx;
+    strcpy_s(proc->cwd_path, FS_PATH_MAX, "/");
     return proc;
 }
 
@@ -388,6 +401,12 @@ int process_fork(struct trap_frame *parent_tf) {
             child->exec_argv[i][j] = current_proc->exec_argv[i][j];
         }
     }
+    child->root_mount_idx = current_proc->root_mount_idx;
+    child->root_node_idx = current_proc->root_node_idx;
+    strcpy_s(child->root_path, FS_PATH_MAX, current_proc->root_path);
+    child->cwd_mount_idx = current_proc->cwd_mount_idx;
+    child->cwd_node_idx = current_proc->cwd_node_idx;
+    strcpy_s(child->cwd_path, FS_PATH_MAX, current_proc->cwd_path);
 
     // child page table + user pages copy
     uint32_t *page_table = (uint32_t *)alloc_pages(1);

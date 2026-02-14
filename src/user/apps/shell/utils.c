@@ -195,9 +195,9 @@ int parse_redirection(char **argv, int argc, char **exec_argv, int *exec_argc, c
     return 0;
 }
 
-void redraw_cmdline(const char *line, int cursor_pos) {
+void redraw_cmdline(const char *line, int cursor_pos, char *cwd_path) {
     // Move to line head, redraw prompt, clear rest of line, then print cmdline.
-    printf("\r\033[34maqua-core\033[0m:$ \033[K%s", line);
+    printf("\r%saqua-core%s:%s%s%s$ \033[K%s", CONSOLE_BLUE, CONSOLE_WHITE, CONSOLE_BLUE, cwd_path, CONSOLE_WHITE, line);
 
     int len = str_len(line);
     if (cursor_pos < 0) {

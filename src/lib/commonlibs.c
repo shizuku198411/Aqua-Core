@@ -94,8 +94,52 @@ char *strcpy(char *dst, const char *src) {
 
 
 char *strcpy_s(char *dst, size_t n, const char *src) {
+    if (!dst || !src || n == 0) {
+        return dst;
+    }
+
     char *d = dst;
-    while (n--) {
+    size_t remain = n - 1;
+    while (remain-- && *src) {
+        *d++ = *src++;
+    }
+    *d = '\0';
+    return dst;
+}
+
+char *strcat(char *dst, const char *src) {
+    if (!dst || !src) {
+        return dst;
+    }
+
+    char *d = dst;
+    while (*d) {
+        d++;
+    }
+    while (*src) {
+        *d++ = *src++;
+    }
+    *d = '\0';
+    return dst;
+}
+
+char *strcat_s(char *dst, size_t n, const char *src) {
+    if (!dst || !src || n == 0) {
+        return dst;
+    }
+
+    size_t len = 0;
+    while (len < n && dst[len] != '\0') {
+        len++;
+    }
+    if (len == n) {
+        dst[n - 1] = '\0';
+        return dst;
+    }
+
+    size_t remain = n - len - 1;
+    char *d = dst + len;
+    while (remain-- && *src) {
         *d++ = *src++;
     }
     *d = '\0';

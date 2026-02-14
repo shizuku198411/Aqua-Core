@@ -28,6 +28,8 @@
 #define SYSCALL_DUP2        23
 #define SYSCALL_EXECV       24
 #define SYSCALL_GETARGS     25
+#define SYSCALL_GETROOTFS   26
+#define SYSCALL_GETCWD      27
 
 
 void handle_syscall(struct trap_frame *f);

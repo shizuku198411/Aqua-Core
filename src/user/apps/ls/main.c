@@ -26,17 +26,38 @@ int main(int argc, char **argv) {
         }
     }
 
-    char path[FS_NAME_MAX];
+    char path[FS_PATH_MAX];
+    char cwd_path[FS_PATH_MAX];
+    if (getcwd(cwd_path) < 0) {
+        printf("get cwd failed\n");
+        return -1;
+    }
     if (argc == 1) {
-        strcpy(path, "/");
+        strcpy_s(path, FS_PATH_MAX, cwd_path);
     } else if (argc == 2) {
         if (detail || all_print) {
-            strcpy(path, "/");
+            strcpy_s(path, FS_PATH_MAX, cwd_path);
         } else {
-            strcpy(path, argv[1]);
+            if (argv[1][0] != '/') {
+                strcpy_s(path, FS_PATH_MAX, cwd_path);
+                if (strcmp(cwd_path, "/") != 0) {
+                    strcat_s(path, FS_PATH_MAX, "/");
+                }
+                strcat_s(path, FS_PATH_MAX, argv[1]);
+            } else {
+                strcpy_s(path, FS_PATH_MAX, argv[1]);
+            }
         }
     } else {
-        strcpy(path, argv[2]);
+        if (argv[2][0] != '/') {
+            strcpy_s(path, FS_PATH_MAX, cwd_path);
+            if (strcmp(cwd_path, "/") != 0) {
+                strcat_s(path, FS_PATH_MAX, "/");
+            }
+            strcat_s(path, FS_PATH_MAX, argv[2]);
+        } else {
+            strcpy_s(path, FS_PATH_MAX, argv[2]);
+        }
     }
 
     struct fs_dirent ent;

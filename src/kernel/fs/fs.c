@@ -952,3 +952,19 @@ void fs_on_process_recycle(int pid) {
 uint32_t fs_get_pfs_image_blocks(void) {
     return (uint32_t) pfs_block_count();
 }
+
+int fs_get_root_entry(int *mount_idx, int *node_idx) {
+    if (!mount_idx || !node_idx) return -1;
+    struct vfs_mount *m = NULL;
+    const char *subpath = NULL;
+
+    if (vfs_resolve_mount("/", &m, &subpath) < 0) return -1;
+
+    struct nodefs *fs = (struct nodefs *)m->ctx;
+    int node = nodefs_resolve_path(fs, "/");
+    if (node < 0 || fs->nodes[node].type != FS_TYPE_DIR) return -1;
+
+    *mount_idx = fs->mount_idx;
+    *node_idx = node;
+    return 0;
+}

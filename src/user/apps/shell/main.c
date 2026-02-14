@@ -135,10 +135,14 @@ int main(int shell_argc, char **shell_argv) {
     (void) shell_argc;
     (void) shell_argv;
     history_load();
+    char cwd_path[FS_PATH_MAX];
 
     while (1) {
 prompt:
-        printf("\033[34maqua-core\033[0m:$ ");
+        if (getcwd(cwd_path) < 0) {
+            strcpy_s(cwd_path, FS_PATH_MAX, "unkown");
+        }
+        printf("%saqua-core%s:%s%s%s$ ", CONSOLE_BLUE, CONSOLE_WHITE, CONSOLE_BLUE, cwd_path, CONSOLE_WHITE);
         char cmdline[CMDLINE_MAX];
         char draft[CMDLINE_MAX];
         int len = 0;
@@ -165,13 +169,13 @@ prompt:
                     if (c2 == 'C') { // right
                         if (cursor < len) {
                             cursor++;
-                            redraw_cmdline(cmdline, cursor);
+                            redraw_cmdline(cmdline, cursor, cwd_path);
                         }
                         continue;
                     } else if (c2 == 'D') { // left
                         if (cursor > 0) {
                             cursor--;
-                            redraw_cmdline(cmdline, cursor);
+                            redraw_cmdline(cmdline, cursor, cwd_path);
                         }
                         continue;
                     } else if (c2 == '3') { // delete
@@ -182,7 +186,7 @@ prompt:
                             }
                             len--;
                             cmdline[len] = '\0';
-                            redraw_cmdline(cmdline, cursor);
+                            redraw_cmdline(cmdline, cursor, cwd_path);
                         }
                         continue;
                     }
@@ -218,7 +222,7 @@ prompt:
                             cmdline[draft_len] = '\0';
                             len = draft_len;
                             cursor = len;
-                            redraw_cmdline(cmdline, cursor);
+                            redraw_cmdline(cmdline, cursor, cwd_path);
                             continue;
                         }
                     }
@@ -227,7 +231,7 @@ prompt:
                         history_get(history_cursor, cmdline, CMDLINE_MAX);
                         len = str_len(cmdline);
                         cursor = len;
-                        redraw_cmdline(cmdline, cursor);
+                        redraw_cmdline(cmdline, cursor, cwd_path);
                     }
                 }
                 continue;
@@ -236,7 +240,7 @@ prompt:
             // Tab completion (app names only)
             if (ch == '\t') {
                 if (complete_app_name(cmdline, &len, &cursor)) {
-                    redraw_cmdline(cmdline, cursor);
+                    redraw_cmdline(cmdline, cursor, cwd_path);
                 }
                 continue;
             }
@@ -250,7 +254,7 @@ prompt:
                     len--;
                     cursor--;
                     cmdline[len] = '\0';
-                    redraw_cmdline(cmdline, cursor);
+                    redraw_cmdline(cmdline, cursor, cwd_path);
                 }
                 continue;
             }
@@ -271,7 +275,7 @@ prompt:
                 cmdline[cursor] = ch;
                 len++;
                 cursor++;
-                redraw_cmdline(cmdline, cursor);
+                redraw_cmdline(cmdline, cursor, cwd_path);
             }
         }
 
@@ -345,87 +349,6 @@ prompt:
             history_write();
             shell_cmd_exit();
         }
-
-        #ifdef DEBUG
-        else if (strcmp(argv[0], "fork_test") == 0 && argc == 1) {
-            int pid = fork();
-            if (pid < 0) {
-                printf("fork failed\n");
-            }
-
-            else if (pid == 0) {
-                printf("[child] fork() returned 0\n");
-                if (exec(APP_ID_PS) < 0) {
-                    printf("exec failed\n");
-                }
-                exit();
-            }
-
-            printf("[parent] child pid=%d\n", pid);
-            int waited = waitpid(pid);
-            printf("[parent] waitpid(%d) => %d\n", pid, waited);
-        }
-
-        else if (strcmp(argv[0], "exec_test") == 0 && argc == 1) {
-            int pid = fork();
-            if (pid < 0)  {
-                printf("fork failed\n");
-            }
-
-            else if (pid == 0) {
-                printf("[child] fork() returned 0\n");
-                printf("[child] exec IPC_RX\n");
-                int ret = exec(APP_ID_IPC_RX);
-                if (ret < 0) {
-                    printf("[child] exec failed\n");
-                }
-                exit();
-            }
-
-            printf("[parent] child pid=%d\n", pid);
-        }
-
-        else if (strcmp(argv[0], "dup2_test") == 0 && argc == 1) {
-            // create old_fd
-            char *old_path = "/tmp/dup2.test";
-            shell_cmd_write_file((const char *)old_path, "dup2_test");
-            // open old_path
-            int old_fd = fs_open((const char *)old_path, O_RDONLY);
-
-            // case1: invalid new_fd
-            if (dup2(old_fd, FS_FD_MAX) == -1) printf("dup2() failed\n");
-            // case2: invalid old_fd
-            if (dup2(FS_FD_MAX, old_fd) == -1) printf("dup2() failed\n");
-            // case3: new_fd same as old_fd
-            if (dup2(old_fd, old_fd) == old_fd) printf("dup2() success\n");
-            // case4: new_fd not same as old_fd
-            int new_fd = old_fd + 1;
-            if (dup2(old_fd, new_fd) == new_fd) {
-                printf("dup2() success\n");
-                // read new_fd
-                char buf[64];
-                while (1) {
-                    int n = fs_read(new_fd, buf, sizeof(buf) - 1);
-                    if (n <= 0) {
-                        break;
-                    }
-                    buf[n] = '\0';
-                    printf("%s", buf);
-                }
-                printf("\n");
-                fs_close(new_fd);
-            } else {
-                printf("dup2() failed\n");
-            }
-
-            // close old_fd
-            fs_close(old_fd);
-        }
-
-        else if (strcmp(argv[0], "stdin_test") == 0 && argc == 1) {
-            shell_cmd_stdin_test();
-        }
-        #endif
 
         else {
             bool background = is_background(argv, argc);

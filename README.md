@@ -94,4 +94,3 @@ make run
 - [Memory Map](./docs/memory-map.md)
 - [SV32 Paging](./docs/sv32.md)
 - [Page Table Mapping Path](./docs/page-table-path.md)
-- [Troubleshoot: Page Table Walk GDB手順](./docs/troubleshoot/page_table_walk_gdb.md)

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "stdtypes.h"
-
+#include "fs.h"
 
 #define PROCS_MAX     64
 #define PROC_NAME_MAX 16
@@ -24,24 +24,30 @@
 
 
 struct process {
-    int         pid;                // process id
-    int         state;              // process status
-    char        name[PROC_NAME_MAX];// process name
-    int         wait_reason;        // why this process is waiting
-    int         wait_pid;           // target child pid for waitpid (-1:any)
-    int         parent_pid;         // parent pid (0: no parent)
-    uint32_t    user_pages;         // mapped user pages count
-    vaddr_t     sp;                 // sp for context switch
-    uint32_t    *page_table;        // page table
-    uint32_t    time_slice;         // remaining time slice ticks
-    uint32_t    run_ticks;          // accumulated running ticks
-    uint32_t    schedule_count;     // how many times scheduled in
-    int         ipc_has_message;    // single-slot mailbox state
-    int         ipc_from_pid;       // mailbox sender pid
-    uint32_t    ipc_message;        // mailbox payload
-    int         exec_argc;          // argc for current image
+    int         pid;                    // process id
+    int         state;                  // process status
+    char        name[PROC_NAME_MAX];    // process name
+    int         wait_reason;            // why this process is waiting
+    int         wait_pid;               // target child pid for waitpid (-1:any)
+    int         parent_pid;             // parent pid (0: no parent)
+    uint32_t    user_pages;             // mapped user pages count
+    vaddr_t     sp;                     // sp for context switch
+    uint32_t    *page_table;            // page table
+    uint32_t    time_slice;             // remaining time slice ticks
+    uint32_t    run_ticks;              // accumulated running ticks
+    uint32_t    schedule_count;         // how many times scheduled in
+    int         ipc_has_message;        // single-slot mailbox state
+    int         ipc_from_pid;           // mailbox sender pid
+    uint32_t    ipc_message;            // mailbox payload
+    int         exec_argc;              // argc for current image
     char        exec_argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN];
-    uint8_t     stack[8192];        // kernel stack
+    int         root_mount_idx;         // root mount index
+    int         root_node_idx;          // root node index
+    char        root_path[FS_PATH_MAX]; // root path
+    int         cwd_mount_idx;          // cwd mount index
+    int         cwd_node_idx;           // cwd node index
+    char        cwd_path[FS_PATH_MAX];  // cwd path
+    uint8_t     stack[8192];            // kernel stack
 };
 
 struct exec_args {

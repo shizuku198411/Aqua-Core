@@ -2,6 +2,7 @@
 #include "kernel.h"
 #include "process.h"
 #include "fs_internal.h"
+#include "commonlibs.h"
 
 #define SSTATUS_SUM (1u << 18)
 
@@ -157,4 +158,24 @@ void syscall_handle_dup2(struct trap_frame *f) {
         return;
     }
     f->a0 = ret;
+}
+
+void syscall_handle_getcwd(struct trap_frame *f) {
+    if (!current_proc) {
+        f->a0 = -1;
+        return;
+    }
+
+    char *cwd_path = (char *) f->a0;
+    if (!cwd_path) {
+        f->a0 = -1;
+        return;
+    }
+
+    uint32_t sstatus = READ_CSR(sstatus);
+    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
+    strcpy_s(cwd_path, FS_PATH_MAX, current_proc->cwd_path);
+    WRITE_CSR(sstatus, sstatus);
+
+    f->a0 = 0;
 }
