@@ -141,11 +141,11 @@ void banner(void) {
     #define CONSOLE_RESET "\033[0m"
     printf("\n\n");
     printf(CONSOLE_BLUE);
-    printf("                 /\\\n");
-    printf("                /  \\\n");
-    printf("               / %s__ %s\\\n", CONSOLE_RESET, CONSOLE_BLUE);
-    printf("              / %s/  \\ %s\\\n", CONSOLE_RESET, CONSOLE_BLUE);
-    printf("              \\_%s\\__/%s_/\n\n", CONSOLE_RESET, CONSOLE_BLUE);
+    printf("              /\\\n");
+    printf("             /  \\\n");
+    printf("            / %s__ %s\\\n", CONSOLE_RESET, CONSOLE_BLUE);
+    printf("           / %s/  \\ %s\\\n", CONSOLE_RESET, CONSOLE_BLUE);
+    printf("           \\_%s\\__/%s_/\n\n", CONSOLE_RESET, CONSOLE_BLUE);
     printf(CONSOLE_RESET);
     printf("    Welcome to %sAquaCore%s %s\n\n", CONSOLE_BLUE, CONSOLE_RESET, KERNEL_VERSION);
 }
