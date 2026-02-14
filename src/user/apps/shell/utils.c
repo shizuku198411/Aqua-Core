@@ -3,6 +3,114 @@
 #include "process.h"
 #include "user_syscall.h"
 
+static int shell_output_fd = -1;
+static int shell_input_fd = -1;
+
+void shell_set_input_fd(int fd) {
+    shell_input_fd = fd;
+}
+
+void shell_reset_input_fd(void) {
+    shell_input_fd = -1;
+}
+
+int shell_read_input(void *buf, size_t size) {
+    if (!buf || size == 0) {
+        return -1;
+    }
+
+    if (shell_input_fd >= 0) {
+        return fs_read(shell_input_fd, buf, size);
+    }
+
+    char *cbuf = (char *) buf;
+    long ch = getchar();
+    if (ch < 0) {
+        return -1;
+    }
+    cbuf[0] = (char) ch;
+    return 1;
+}
+
+void shell_set_output_fd(int fd) {
+    shell_output_fd = fd;
+}
+
+void shell_reset_output_fd(void) {
+    shell_output_fd = -1;
+}
+
+static void shell_putc(char ch) {
+    if (shell_output_fd >= 0) {
+        (void) fs_write(shell_output_fd, &ch, 1);
+    } else {
+        putchar(ch);
+    }
+}
+
+void shell_printf(const char *fmt, ...) {
+    va_list vargs;
+    va_start(vargs, fmt);
+
+    while (*fmt) {
+        if (*fmt == '%') {
+            fmt++;
+            switch (*fmt) {
+                case '\0':
+                    shell_putc('%');
+                    goto end;
+                case '%':
+                    shell_putc('%');
+                    break;
+                case 's': {
+                    const char *s = va_arg(vargs, const char *);
+                    while (*s) {
+                        shell_putc(*s);
+                        s++;
+                    }
+                    break;
+                }
+                case 'd': {
+                    int value = va_arg(vargs, int);
+                    unsigned magnitude = value;
+                    if (value < 0) {
+                        shell_putc('-');
+                        magnitude = -magnitude;
+                    }
+                    unsigned divisor = 1;
+                    while (magnitude / divisor > 9) {
+                        divisor *= 10;
+                    }
+                    while (divisor > 0) {
+                        shell_putc('0' + magnitude / divisor);
+                        magnitude %= divisor;
+                        divisor /= 10;
+                    }
+                    break;
+                }
+                case 'x': {
+                    unsigned value = va_arg(vargs, unsigned);
+                    for (int i = 7; i >= 0; i--) {
+                        unsigned nibble = (value >> (i * 4)) & 0xf;
+                        shell_putc("0123456789abcdef"[nibble]);
+                    }
+                    break;
+                }
+                default:
+                    shell_putc('%');
+                    shell_putc(*fmt);
+                    break;
+            }
+        } else {
+            shell_putc(*fmt);
+        }
+        fmt++;
+    }
+
+end:
+    va_end(vargs);
+}
+
 char *proc_state_to_string(int state) {
     switch (state) {
         case PROC_RUNNABLE:
@@ -73,6 +181,46 @@ int parse_int(const char *s, int *out) {
     return 0;
 }
 
+int parse_redirection(char **argv, int argc, char **exec_argv, int *exec_argc, char **in_path, char **out_path) {
+    if (!argv || argc < 0) {
+        return -1;
+    }
+    if (!in_path || !out_path) {
+        return -1;
+    }
+
+    *in_path = NULL;
+    *out_path = NULL;
+
+    int outc = 0;
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "<") == 0 || strcmp(argv[i], ">") == 0) {
+            int is_input = (argv[i][0] == '<');
+            if (i + 1 >= argc) {
+                return -1;
+            }
+
+            if (is_input) {
+                *in_path = argv[i + 1];
+            } else {
+                *out_path = argv[i + 1];
+            }
+
+            i++; // skip path token
+            continue;
+        }
+
+        if (exec_argv && exec_argc) {
+            exec_argv[outc++] = argv[i];
+        }
+    }
+
+    if (exec_argc) {
+        *exec_argc = outc;
+    }
+    return 0;
+}
+
 void redraw_cmdline(const char *line) {
     // Move to line head, redraw prompt, clear rest of line, then print cmdline.
     printf("\r\033[34maqua-core\033[0m:$ \033[K%s", line);
@@ -116,7 +264,7 @@ void history_push(const char *line) {
 void history_print(void) {
     for (int i = 0; i < history_count; i++) {
         int idx = (history_head + i) % HISTORY_MAX;
-        printf("%d: %s\n", i + 1, history[idx]);
+        shell_printf("%d: %s\n", i + 1, history[idx]);
     }
 }
 

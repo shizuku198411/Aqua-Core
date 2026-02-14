@@ -4,6 +4,8 @@
 #include "commonlibs.h"
 #include "blockdev.h"
 
+extern void syscall_handle_getchar(struct trap_frame *f);
+
 #define VFS_MOUNT_MAX 4
 #define PFS_MAGIC 0x50465331u
 
@@ -59,6 +61,39 @@ static struct vfs_mount mounts[VFS_MOUNT_MAX];
 static struct nodefs rootfs;
 static struct nodefs tmpfs;
 static struct pfs_image pfs_work_img;
+
+static int console_read_fallback(void *buf, size_t size) {
+    if (!buf) {
+        return -1;
+    }
+    if (size == 0) {
+        return 0;
+    }
+
+    uint8_t *dst = (uint8_t *) buf;
+    for (size_t i = 0; i < size; i++) {
+        struct trap_frame f;
+        memset(&f, 0, sizeof(f));
+        syscall_handle_getchar(&f);
+        dst[i] = (uint8_t) f.a0;
+    }
+    return (int) size;
+}
+
+static int console_write_fallback(const void *buf, size_t size) {
+    if (!buf) {
+        return -1;
+    }
+    if (size == 0) {
+        return 0;
+    }
+
+    const uint8_t *src = (const uint8_t *) buf;
+    for (size_t i = 0; i < size; i++) {
+        putchar((char) src[i]);
+    }
+    return (int) size;
+}
 
 static int copy_name(char *dst, const char *src) {
     int i = 0;
@@ -761,8 +796,11 @@ int fs_read(int pid, int fd, void *buf, size_t size) {
     if (pid < 0 || pid >= PROCS_MAX || !buf) {
         return -1;
     }
-    if (fd < 0 || fd >= FS_FD_MAX || !fd_table[pid][fd].used) {
+    if (fd < 0 || fd >= FS_FD_MAX) {
         return -1;
+    }
+    if (!fd_table[pid][fd].used) {
+        return (fd == 0) ? console_read_fallback(buf, size) : -1;
     }
 
     struct vfs_fd *f = &fd_table[pid][fd];
@@ -785,8 +823,11 @@ int fs_write(int pid, int fd, const void *buf, size_t size) {
     if (pid < 0 || pid >= PROCS_MAX || !buf) {
         return -1;
     }
-    if (fd < 0 || fd >= FS_FD_MAX || !fd_table[pid][fd].used) {
+    if (fd < 0 || fd >= FS_FD_MAX) {
         return -1;
+    }
+    if (!fd_table[pid][fd].used) {
+        return (fd == 1) ? console_write_fallback(buf, size) : -1;
     }
 
     struct vfs_fd *f = &fd_table[pid][fd];
