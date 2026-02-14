@@ -785,6 +785,92 @@ int process_kill(int target_pid) {
     return killed_pid;
 }
 
+static const char *proc_state_str(int state) {
+    switch (state) {
+        case PROC_UNUSED:   return "UNUSED";
+        case PROC_RUNNABLE: return "RUN";
+        case PROC_WAITTING: return "WAIT";
+        case PROC_EXITED:   return "EXIT";
+        default:            return "UNKNOWN";
+    }
+}
+
+static const char *proc_wait_reason_str(int wait_reason) {
+    switch (wait_reason) {
+        case PROC_WAIT_NONE:          return "NONE";
+        case PROC_WAIT_CONSOLE_INPUT: return "CONSOLE_INPUT";
+        case PROC_WAIT_CHILD_EXIT:    return "CHILD_EXIT";
+        case PROC_WAIT_IPC_RECV:      return "IPC_RECV";
+        default:                      return "UNKNOWN";
+    }
+}
+
+static int str_len_k(const char *s) {
+    int n = 0;
+    while (s && s[n] != '\0') {
+        n++;
+    }
+    return n;
+}
+
+static int append_char_k(char *out, size_t out_size, size_t *pos, char c) {
+    if (!out || !pos || *pos + 1 >= out_size) {
+        return -1;
+    }
+    out[*pos] = c;
+    (*pos)++;
+    out[*pos] = '\0';
+    return 0;
+}
+
+static int append_str_k(char *out, size_t out_size, size_t *pos, const char *s) {
+    if (!s) {
+        return append_str_k(out, out_size, pos, "(null)");
+    }
+    while (*s) {
+        if (append_char_k(out, out_size, pos, *s++) < 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int append_u32_k(char *out, size_t out_size, size_t *pos, uint32_t v) {
+    char tmp[10];
+    int n = 0;
+    if (v == 0) {
+        return append_char_k(out, out_size, pos, '0');
+    }
+    while (v > 0 && n < (int) sizeof(tmp)) {
+        tmp[n++] = (char) ('0' + (v % 10));
+        v /= 10;
+    }
+    for (int i = n - 1; i >= 0; i--) {
+        if (append_char_k(out, out_size, pos, tmp[i]) < 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int append_key_val_u32(char *out, size_t out_size, size_t *pos,
+                              const char *key, uint32_t value) {
+    if (append_str_k(out, out_size, pos, key) < 0) return -1;
+    if (append_str_k(out, out_size, pos, ":\t") < 0) return -1;
+    if (append_u32_k(out, out_size, pos, value) < 0) return -1;
+    if (append_char_k(out, out_size, pos, '\n') < 0) return -1;
+    return 0;
+}
+
+static int append_key_val_str(char *out, size_t out_size, size_t *pos,
+                              const char *key, const char *value) {
+    if (append_str_k(out, out_size, pos, key) < 0) return -1;
+    if (append_str_k(out, out_size, pos, ":\t") < 0) return -1;
+    if (append_str_k(out, out_size, pos, value) < 0) return -1;
+    if (append_char_k(out, out_size, pos, '\n') < 0) return -1;
+    return 0;
+}
+
 struct process *process_from_trap_frame(struct trap_frame *f) {
     if (!f) {
         return NULL;
@@ -801,4 +887,51 @@ struct process *process_from_trap_frame(struct trap_frame *f) {
     }
 
     return NULL;
+}
+
+int procfs_sync_process(const struct process *proc) {
+    if (!proc) {
+        return -1;
+    }
+    if (proc->pid <= 0 || proc->pid >= PROCS_MAX) {
+        return -1;
+    }
+
+    char dir_path[FS_PATH_MAX];
+    char status_path[FS_PATH_MAX];
+    char content[256];
+    size_t pos = 0;
+
+    // Ensure /proc/<pid> exists (ignore EEXIST-like failures).
+    dir_path[0] = '\0';
+    strcat_s(dir_path, sizeof(dir_path), "/proc/");
+    pos = (size_t) str_len_k(dir_path);
+    if (append_u32_k(dir_path, sizeof(dir_path), &pos, (uint32_t) proc->pid) < 0) {
+        return -1;
+    }
+    (void) fs_mkdir(dir_path);
+
+    strcpy_s(status_path, sizeof(status_path), dir_path);
+    strcat_s(status_path, sizeof(status_path), "/status");
+
+    content[0] = '\0';
+    pos = 0;
+    if (append_key_val_u32(content, sizeof(content), &pos, "pid", (uint32_t) proc->pid) < 0) return -1;
+    if (append_key_val_u32(content, sizeof(content), &pos, "ppid", (uint32_t) proc->parent_pid) < 0) return -1;
+    if (append_key_val_str(content, sizeof(content), &pos, "name", proc->name) < 0) return -1;
+    if (append_key_val_u32(content, sizeof(content), &pos, "state_id", (uint32_t) proc->state) < 0) return -1;
+    if (append_key_val_str(content, sizeof(content), &pos, "state", proc_state_str(proc->state)) < 0) return -1;
+    if (append_key_val_u32(content, sizeof(content), &pos, "wait_reason_id", (uint32_t) proc->wait_reason) < 0) return -1;
+    if (append_key_val_str(content, sizeof(content), &pos, "wait_reason", proc_wait_reason_str(proc->wait_reason)) < 0) return -1;
+    if (append_key_val_str(content, sizeof(content), &pos, "cwd", proc->cwd_path) < 0) return -1;
+
+    int fd = fs_open(proc->pid, status_path, O_CREAT | O_WRONLY | O_TRUNC);
+    if (fd < 0) {
+        return -1;
+    }
+
+    int len = str_len_k(content);
+    int written = fs_write(proc->pid, fd, content, (size_t) len);
+    (void) fs_close(proc->pid, fd);
+    return (written == len) ? 0 : -1;
 }

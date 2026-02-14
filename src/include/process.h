@@ -89,4 +89,5 @@ int process_exec(const void *image,
                  int argc,
                  const char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN]);
 struct process *process_from_trap_frame(struct trap_frame *f);
+int procfs_sync_process(const struct process *proc);
 void yield(void);
