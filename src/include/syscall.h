@@ -26,9 +26,9 @@
 #define SYSCALL_FORK        21
 #define SYSCALL_EXEC        22
 #define SYSCALL_DUP2        23
+#define SYSCALL_EXECV       24
+#define SYSCALL_GETARGS     25
 
-#define APP_ID_SHELL        1
-#define APP_ID_IPC_RX       2
 
 void handle_syscall(struct trap_frame *f);
 void poll_console_input(void);

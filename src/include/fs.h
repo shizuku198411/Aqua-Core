@@ -22,3 +22,6 @@ struct fs_dirent {
     int type;
     uint32_t size;
 };
+
+#define STDIN   0
+#define STDOUT  1

@@ -122,6 +122,14 @@ int exec(int app_id) {
     return syscall(SYSCALL_EXEC, app_id, 0, 0);
 }
 
+int execv(int app_id, const char **argv) {
+    return syscall(SYSCALL_EXECV, app_id, (int) argv, 0);
+}
+
 int dup2(int old_fd, int new_fd) {
     return syscall(SYSCALL_DUP2, old_fd, new_fd, 0);
+}
+
+int getargs(struct exec_args *out) {
+    return syscall(SYSCALL_GETARGS, (int) out, 0, 0);
 }

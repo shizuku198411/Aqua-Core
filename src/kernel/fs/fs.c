@@ -756,6 +756,20 @@ void fs_init(void) {
     printf("OK\n");
 }
 
+int fs_fork_copy_fds(int parent_pid, int child_pid) {
+    if (parent_pid < 0 || parent_pid >= PROCS_MAX) {
+        return -1;
+    }
+    if (child_pid < 0 || child_pid >= PROCS_MAX) {
+        return -1;
+    }
+
+    for (int fd = 0; fd < FS_FD_MAX; fd++) {
+        fd_table[child_pid][fd] = fd_table[parent_pid][fd];
+    }
+    return 0;
+}
+
 int fs_open(int pid, const char *path, int flags) {
     struct vfs_mount *m = NULL;
     const char *subpath = NULL;

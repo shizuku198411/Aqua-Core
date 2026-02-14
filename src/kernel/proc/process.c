@@ -31,6 +31,43 @@ static void set_process_name(struct process *proc, const char *name) {
     }
 }
 
+static void clear_exec_args(struct process *proc) {
+    if (!proc) {
+        return;
+    }
+
+    proc->exec_argc = 0;
+    for (int i = 0; i < PROC_EXEC_ARGV_MAX; i++) {
+        for (int j = 0; j < PROC_EXEC_ARG_LEN; j++) {
+            proc->exec_argv[i][j] = '\0';
+        }
+    }
+}
+
+static void set_exec_args(struct process *proc,
+                          int argc,
+                          const char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN]) {
+    clear_exec_args(proc);
+    if (!proc || !argv || argc <= 0) {
+        return;
+    }
+
+    int n = argc;
+    if (n > PROC_EXEC_ARGV_MAX) {
+        n = PROC_EXEC_ARGV_MAX;
+    }
+    proc->exec_argc = n;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < PROC_EXEC_ARG_LEN - 1; j++) {
+            proc->exec_argv[i][j] = argv[i][j];
+            if (argv[i][j] == '\0') {
+                break;
+            }
+        }
+        proc->exec_argv[i][PROC_EXEC_ARG_LEN - 1] = '\0';
+    }
+}
+
 
 static struct process *find_process_by_pid(int pid) {
     if (pid <= 0) {
@@ -113,6 +150,7 @@ static void recycle_process_slot(struct process *proc) {
     proc->ipc_has_message = 0;
     proc->ipc_from_pid = 0;
     proc->ipc_message = 0;
+    clear_exec_args(proc);
 }
 
 
@@ -262,6 +300,7 @@ struct process *create_process(const void *image, size_t image_size, const char 
     proc->ipc_has_message = 0;
     proc->ipc_from_pid = 0;
     proc->ipc_message = 0;
+    clear_exec_args(proc);
     return proc;
 }
 
@@ -329,6 +368,7 @@ struct process *alloc_proc_slot() {
     proc->wait_reason = PROC_WAIT_NONE;
     proc->wait_pid = -1;
     proc->parent_pid = 0;
+    clear_exec_args(proc);
     return proc;
 }
 
@@ -342,6 +382,12 @@ int process_fork(struct trap_frame *parent_tf) {
     child->ipc_has_message = 0;
     child->ipc_from_pid = 0;
     child->ipc_message = 0;
+    child->exec_argc = current_proc->exec_argc;
+    for (int i = 0; i < PROC_EXEC_ARGV_MAX; i++) {
+        for (int j = 0; j < PROC_EXEC_ARG_LEN; j++) {
+            child->exec_argv[i][j] = current_proc->exec_argv[i][j];
+        }
+    }
 
     // child page table + user pages copy
     uint32_t *page_table = (uint32_t *)alloc_pages(1);
@@ -396,6 +442,10 @@ int process_fork(struct trap_frame *parent_tf) {
 
     child->sp = (uint32_t)ksp;
 
+    if (fs_fork_copy_fds(current_proc->pid, child->pid) < 0) {
+        goto fail;
+    }
+
     // finalize
     child->state = PROC_RUNNABLE;
     child->time_slice = SCHED_TIME_SLICE_TICKS;
@@ -429,7 +479,11 @@ static void free_user_pages_only(struct process *proc) {
     proc->user_pages = 0;
 }
 
-int process_exec(const void *image, size_t image_size, const char *name) {
+int process_exec(const void *image,
+                 size_t image_size,
+                 const char *name,
+                 int argc,
+                 const char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN]) {
     if (!current_proc || !image || image_size == 0) {
         return -1;
     }
@@ -458,6 +512,7 @@ int process_exec(const void *image, size_t image_size, const char *name) {
     current_proc->wait_pid = -1;
     current_proc->time_slice = SCHED_TIME_SLICE_TICKS;
     current_proc->run_ticks = 0;
+    set_exec_args(current_proc, argc, argv);
 
     WRITE_CSR(sepc, USER_BASE);
 

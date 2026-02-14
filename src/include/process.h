@@ -5,6 +5,8 @@
 
 #define PROCS_MAX     64
 #define PROC_NAME_MAX 16
+#define PROC_EXEC_ARGV_MAX 8
+#define PROC_EXEC_ARG_LEN  32
 
 // status
 #define PROC_UNUSED     0
@@ -37,7 +39,14 @@ struct process {
     int         ipc_has_message;    // single-slot mailbox state
     int         ipc_from_pid;       // mailbox sender pid
     uint32_t    ipc_message;        // mailbox payload
+    int         exec_argc;          // argc for current image
+    char        exec_argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN];
     uint8_t     stack[8192];        // kernel stack
+};
+
+struct exec_args {
+    int  argc;
+    char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN];
 };
 
 struct ps_info {
@@ -68,6 +77,10 @@ int process_ipc_send(int src_pid, int dst_pid, uint32_t message);
 int process_ipc_recv(int self_pid, int *from_pid, uint32_t *message);
 int process_kill(int target_pid);
 int process_fork(struct trap_frame *parent_tf);
-int process_exec(const void *image, size_t image_size, const char *name);
+int process_exec(const void *image,
+                 size_t image_size,
+                 const char *name,
+                 int argc,
+                 const char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN]);
 struct process *process_from_trap_frame(struct trap_frame *f);
 void yield(void);

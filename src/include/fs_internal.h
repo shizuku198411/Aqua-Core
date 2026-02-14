@@ -3,6 +3,7 @@
 #include "fs.h"
 
 void fs_init(void);
+int fs_fork_copy_fds(int parent_pid, int child_pid);
 int fs_open(int pid, const char *path, int flags);
 int fs_close(int pid, int fd);
 int fs_read(int pid, int fd, void *buf, size_t size);

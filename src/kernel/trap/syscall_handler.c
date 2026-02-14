@@ -97,6 +97,14 @@ void handle_syscall(struct trap_frame *f) {
             syscall_handle_dup2(f);
             break;
 
+        case SYSCALL_EXECV:
+            syscall_handle_execv(f);
+            break;
+
+        case SYSCALL_GETARGS:
+            syscall_handle_getargs(f);
+            break;
+
         default:
             PANIC("undefined system call");
     }
