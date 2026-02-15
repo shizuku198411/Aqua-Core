@@ -16,3 +16,5 @@ int net_tx_frame(const void *buf, size_t len);
 int net_get_mac(uint8_t out_mac[6]);
 int net_ping_send_once(uint32_t dst_ip, uint16_t id, uint16_t seq);
 int net_rx_try_dequeue(const uint8_t **frame_out, size_t *len_out);
+int net_dev_read(void *buf, size_t size);
+int net_dev_write(const void *buf, size_t size);

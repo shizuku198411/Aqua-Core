@@ -2,12 +2,14 @@
 #include "user_syscall.h"
 #include "net.h"
 #include "rtc.h"
+#include "fs.h"
 
 #define PING_ID        0x1234u
 #define PING_SEQ_START 1u
 #define PING_DATA_LEN  13u  // strlen("aquacore-ping")
 #define PING_DEFAULT_COUNT 5u
 #define PING_INTERVAL_MS   1000u
+#define NET0_PING_MAGIC    0x50494e47u  // "PING"
 
 static int parse_octet(const char *s, int *consumed, uint32_t *out) {
     if (!s || !consumed || !out) {
@@ -93,6 +95,12 @@ int main(int argc, char **argv) {
 
     printf("PING %s: %d data bytes\n", argv[1], (int) PING_DATA_LEN);
 
+    int netfd = fs_open("/dev/net0", O_WRONLY);
+    if (netfd < 0) {
+        printf("open /dev/net0 failed\n");
+        return -1;
+    }
+
     int transmitted = 0;
     int received = 0;
     uint32_t rtt_min = 0;
@@ -105,14 +113,30 @@ int main(int argc, char **argv) {
 
         if (gettime(&t0) < 0) {
             printf("gettime failed\n");
+            fs_close(netfd);
             return -1;
         }
 
         transmitted++;
-        int ret = ping_tx(dst_ip, PING_ID, seq);
+        uint8_t req[12];
+        req[0] = (uint8_t) ((NET0_PING_MAGIC >> 24) & 0xffu);
+        req[1] = (uint8_t) ((NET0_PING_MAGIC >> 16) & 0xffu);
+        req[2] = (uint8_t) ((NET0_PING_MAGIC >> 8) & 0xffu);
+        req[3] = (uint8_t) (NET0_PING_MAGIC & 0xffu);
+        req[4] = (uint8_t) ((dst_ip >> 24) & 0xffu);
+        req[5] = (uint8_t) ((dst_ip >> 16) & 0xffu);
+        req[6] = (uint8_t) ((dst_ip >> 8) & 0xffu);
+        req[7] = (uint8_t) (dst_ip & 0xffu);
+        req[8] = (uint8_t) ((PING_ID >> 8) & 0xffu);
+        req[9] = (uint8_t) (PING_ID & 0xffu);
+        req[10] = (uint8_t) ((seq >> 8) & 0xffu);
+        req[11] = (uint8_t) (seq & 0xffu);
+
+        int ret = fs_write(netfd, req, sizeof(req));
 
         if (gettime(&t1) < 0) {
             printf("gettime failed\n");
+            fs_close(netfd);
             return -1;
         }
 
@@ -154,6 +178,8 @@ int main(int argc, char **argv) {
         printf("round-trip min/avg/max = %d/%d/%d ms\n",
                (int) rtt_min, (int) rtt_avg, (int) rtt_max);
     }
+
+    fs_close(netfd);
 
     return (received > 0) ? 0 : -1;
 }

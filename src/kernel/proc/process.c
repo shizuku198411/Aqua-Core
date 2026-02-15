@@ -308,6 +308,7 @@ struct process *create_process(const void *image, size_t image_size, const char 
     }
 
     proc->pid = i;
+    fs_init_process_stdio(proc->pid);
     proc->state = PROC_RUNNABLE;
     set_process_name(proc, name);
     proc->wait_reason = PROC_WAIT_NONE;
