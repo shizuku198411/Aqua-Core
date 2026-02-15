@@ -6,6 +6,20 @@
 #define NET_VQ_NUM    8u
 #define NET_VQ_ALIGN  4096u
 #define NET_VQ_BYTES  (2u * NET_VQ_ALIGN)
+#define NET_TXQ_SEL   1u
+#define NET_TX_MAX_FRAME 1514u
+#define NET_IO_SPIN_LIMIT 30000000u
+
+// Virtio-net header (legacy+modern common layout).
+struct virtio_net_hdr {
+    uint8_t flags;
+    uint8_t gso_type;
+    uint16_t hdr_len;
+    uint16_t gso_size;
+    uint16_t csum_start;
+    uint16_t csum_offset;
+    uint16_t num_buffers;
+} __attribute__((packed));
 
 struct virtq_desc {
     uint64_t addr;
@@ -44,6 +58,17 @@ static volatile uint32_t *virtio_net_mmio;
 static struct virtio_queue net_rxq;
 static struct virtio_queue net_txq;
 static uint8_t net_mac[6];
+static uint16_t net_tx_last_used_idx;
+static int net_ready;
+static int net_tx_log_once;
+static int net_probe_sent;
+static struct virtio_net_hdr net_tx_hdr;
+static uint8_t net_tx_frame_buf[NET_TX_MAX_FRAME];
+static void net_send_probe_frame_once(void);
+
+static inline void fence_rw_rw(void) {
+    __asm__ __volatile__("fence rw, rw" ::: "memory");
+}
 
 static inline uint32_t mmio_read(uint32_t off) {
     return *(volatile uint32_t *) ((uint32_t) virtio_net_mmio + off);
@@ -176,6 +201,8 @@ int net_init(void) {
 
     queue_setup_layout(&net_rxq);
     queue_setup_layout(&net_txq);
+    net_tx_last_used_idx = 0;
+    net_ready = 0;
 
     if (configure_device() < 0) {
         mmio_write(VIRTIO_MMIO_STATUS, VIRTIO_STATUS_FAILED);
@@ -184,6 +211,7 @@ int net_init(void) {
     }
 
     read_mac_addr();
+    net_ready = 1;
     printf("     [net] virtio-net init OK:\n           mac=%x:%x:%x:%x:%x:%x\n",
            (unsigned) net_mac[0],
            (unsigned) net_mac[1],
@@ -191,5 +219,98 @@ int net_init(void) {
            (unsigned) net_mac[3],
            (unsigned) net_mac[4],
            (unsigned) net_mac[5]);
+
+    net_send_probe_frame_once();
     return 0;
+}
+
+int net_tx_frame(const void *buf, size_t len) {
+    if (!net_ready) {
+        return -2;
+    }
+    if (!buf || len == 0u) {
+        return -1;
+    }
+    if (len > NET_TX_MAX_FRAME) {
+        return -3;
+    }
+
+    memcpy(net_tx_frame_buf, buf, len);
+    memset(&net_tx_hdr, 0, sizeof(net_tx_hdr));
+
+    // 2-descriptor chain: [virtio_net_hdr] -> [payload]
+    net_txq.desc[0].addr = (uint64_t) (uint32_t) &net_tx_hdr;
+    net_txq.desc[0].len = (uint32_t) sizeof(net_tx_hdr);
+    net_txq.desc[0].flags = VIRTQ_DESC_F_NEXT;
+    net_txq.desc[0].next = 1;
+
+    net_txq.desc[1].addr = (uint64_t) (uint32_t) net_tx_frame_buf;
+    net_txq.desc[1].len = (uint32_t) len;
+    net_txq.desc[1].flags = 0;
+    net_txq.desc[1].next = 0;
+
+    uint16_t avail_idx = net_txq.avail->idx;
+    net_txq.avail->ring[avail_idx % NET_VQ_NUM] = 0;
+
+    fence_rw_rw();
+    net_txq.avail->idx = (uint16_t) (avail_idx + 1);
+    fence_rw_rw();
+    mmio_write(VIRTIO_MMIO_QUEUE_NOTIFY, NET_TXQ_SEL);
+
+    uint32_t spin = 0;
+    while (net_txq.used->idx == net_tx_last_used_idx) {
+        __asm__ __volatile__("nop");
+        if (++spin > NET_IO_SPIN_LIMIT) {
+            if (!net_tx_log_once) {
+                printf("[net] tx timeout len=%d used=%d last=%d\n",
+                       (int) len,
+                       (int) net_txq.used->idx,
+                       (int) net_tx_last_used_idx);
+                net_tx_log_once = 1;
+            }
+            return -5;
+        }
+    }
+
+    net_tx_last_used_idx = net_txq.used->idx;
+    fence_rw_rw();
+    return 0;
+}
+
+static void net_send_probe_frame_once(void) {
+    if (net_probe_sent) {
+        return;
+    }
+    net_probe_sent = 1;
+
+    // Ethernet II test frame:
+    // dst: broadcast, src: device MAC, ethertype: 0x88B5 (experimental/local use)
+    // payload: short ASCII marker (padded to minimum Ethernet payload size)
+    uint8_t frame[60];
+    memset(frame, 0, sizeof(frame));
+
+    // dst MAC (broadcast)
+    for (int i = 0; i < 6; i++) {
+        frame[i] = 0xffu;
+    }
+    // src MAC
+    for (int i = 0; i < 6; i++) {
+        frame[6 + i] = net_mac[i];
+    }
+    // EtherType 0x88B5
+    frame[12] = 0x88u;
+    frame[13] = 0xb5u;
+
+    const char *tag = "aquacore-net-tx-probe";
+    int tag_pos = 14;
+    for (int i = 0; tag[i] != '\0' && tag_pos < (int) sizeof(frame); i++, tag_pos++) {
+        frame[tag_pos] = (uint8_t) tag[i];
+    }
+
+    int ret = net_tx_frame(frame, sizeof(frame));
+    if (ret < 0) {
+        printf("     [net] probe tx failed (%d)\n", ret);
+    } else {
+        printf("     [net] probe tx sent (ethertype=0x88b5 len=%d)\n", (int) sizeof(frame));
+    }
 }

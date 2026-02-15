@@ -280,7 +280,7 @@ run: $(KERNEL_ELF) disk
 	$(QEMU) $(QEMU_OPT) \
 		-drive file=$(DISK_IMG),if=none,format=raw,id=hd0 \
 		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
-		-device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0 -netdev user,id=net0 \
+		-device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0 -netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
 		-kernel $(KERNEL_ELF)
 
 run-debug:
@@ -293,7 +293,7 @@ start: disk
 	$(QEMU) $(QEMU_OPT) \
 		-drive file=$(DISK_IMG),if=none,format=raw,id=hd0 \
 		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
-		-device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0 -netdev user,id=net0 \
+		-device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0 -netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
 		-kernel $(KERNEL_ELF)
 
 start-debug:
@@ -306,7 +306,7 @@ qemu-debug:
 	$(QEMU) $(QEMU_OPT) -S -s \
 		-drive file=$(DISK_IMG),if=none,format=raw,id=hd0 \
 		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
-		-device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0 -netdev user,id=net0 \
+		-device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0 -netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
 		-kernel $(KERNEL_ELF)
 
 clean:
