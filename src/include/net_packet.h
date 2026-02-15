@@ -5,6 +5,7 @@
 #define NET_ETH_ADDR_LEN        6u
 #define NET_ETH_HDR_LEN         14u
 #define NET_ETH_TYPE_IPV4       0x0800u
+#define NET_ETH_TYPE_ARP        0x0806u
 #define NET_ETH_FRAME_MIN_LEN   60u
 
 #define NET_IPV4_HDR_LEN        20u
@@ -15,6 +16,7 @@
 
 #define NET_ICMP_ECHO_HDR_LEN   8u
 #define NET_ICMP_TYPE_ECHO_REQ  8u
+#define NET_ICMP_TYPE_ECHO_REP  0u
 
 uint16_t net_hton16(uint16_t v);
 uint32_t net_hton32(uint32_t v);

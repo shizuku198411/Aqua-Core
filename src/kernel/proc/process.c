@@ -3,6 +3,7 @@
 #include "kernel.h"
 #include "memory.h"
 #include "process.h"
+#include "timer.h"
 #include "fs_internal.h"
 #include "rtc.h"
 
@@ -16,6 +17,7 @@ struct process *idle_proc;
 struct process *init_proc;
 
 static bool need_resched;
+static uint64_t scheduler_tick_count;
 
 static void set_process_name(struct process *proc, const char *name) {
     for (int i = 0; i < PROC_NAME_MAX; i++) {
@@ -162,6 +164,7 @@ static void recycle_process_slot(struct process *proc) {
     proc->ipc_has_message = 0;
     proc->ipc_from_pid = 0;
     proc->ipc_message = 0;
+    proc->sleep_deadline_tick = 0;
     clear_exec_args(proc);
 }
 
@@ -319,6 +322,7 @@ struct process *create_process(const void *image, size_t image_size, const char 
     proc->ipc_has_message = 0;
     proc->ipc_from_pid = 0;
     proc->ipc_message = 0;
+    proc->sleep_deadline_tick = 0;
     clear_exec_args(proc);
     proc->root_mount_idx = root_mount_idx;
     proc->root_node_idx = root_node_idx;
@@ -397,6 +401,7 @@ struct process *alloc_proc_slot() {
     proc->wait_reason = PROC_WAIT_NONE;
     proc->wait_pid = -1;
     proc->parent_pid = 0;
+    proc->sleep_deadline_tick = 0;
     clear_exec_args(proc);
     return proc;
 }
@@ -411,6 +416,7 @@ int process_fork(struct trap_frame *parent_tf) {
     child->ipc_has_message = 0;
     child->ipc_from_pid = 0;
     child->ipc_message = 0;
+    child->sleep_deadline_tick = 0;
     child->exec_argc = current_proc->exec_argc;
     for (int i = 0; i < PROC_EXEC_ARGV_MAX; i++) {
         for (int j = 0; j < PROC_EXEC_ARG_LEN; j++) {
@@ -548,6 +554,7 @@ int process_exec(const void *image,
     set_process_name(current_proc, name);
     current_proc->wait_reason = PROC_WAIT_NONE;
     current_proc->wait_pid = -1;
+    current_proc->sleep_deadline_tick = 0;
     current_proc->time_slice = SCHED_TIME_SLICE_TICKS;
     current_proc->run_ticks = 0;
     set_exec_args(current_proc, argc, argv);
@@ -561,6 +568,22 @@ int process_exec(const void *image,
 }
 
 void scheduler_on_timer_tick(void) {
+    scheduler_tick_count++;
+
+    for (int i = 0; i < PROCS_MAX; i++) {
+        struct process *proc = &procs[i];
+        if (proc->state == PROC_WAITTING &&
+            proc->wait_reason == PROC_WAIT_SLEEP &&
+            scheduler_tick_count >= proc->sleep_deadline_tick) {
+            proc->state = PROC_RUNNABLE;
+            proc->wait_reason = PROC_WAIT_NONE;
+            proc->wait_pid = -1;
+            proc->sleep_deadline_tick = 0;
+            procfs_sync_best_effort(proc);
+            need_resched = true;
+        }
+    }
+
     if (!current_proc || current_proc->state != PROC_RUNNABLE || current_proc->pid <= 0) {
         return;
     }
@@ -780,6 +803,33 @@ int process_ipc_recv(int self_pid, int *from_pid, uint32_t *message) {
     return 0;
 }
 
+int process_sleep_current(uint32_t ms) {
+    if (!current_proc || current_proc->pid <= 0) {
+        return -1;
+    }
+    if (ms == 0u) {
+        return 0;
+    }
+
+    uint32_t tick_ms = (uint32_t) (TIMER_INTERVAL / 10000u);
+    if (tick_ms == 0u) {
+        tick_ms = 1u;
+    }
+
+    uint64_t sleep_ticks = ((uint64_t) ms + (uint64_t) tick_ms - 1ull) / (uint64_t) tick_ms;
+    if (sleep_ticks == 0ull) {
+        sleep_ticks = 1ull;
+    }
+
+    current_proc->wait_reason = PROC_WAIT_SLEEP;
+    current_proc->wait_pid = -1;
+    current_proc->sleep_deadline_tick = scheduler_tick_count + sleep_ticks;
+    current_proc->state = PROC_WAITTING;
+    procfs_sync_best_effort(current_proc);
+    yield();
+    return 0;
+}
+
 int process_kill(int target_pid) {
     if (target_pid <= 0) {
         return -1;
@@ -799,6 +849,7 @@ int process_kill(int target_pid) {
     target->state = PROC_EXITED;
     target->wait_reason = PROC_WAIT_NONE;
     target->wait_pid = -1;
+    target->sleep_deadline_tick = 0;
     procfs_sync_best_effort(target);
     notify_child_exit(target);
 
@@ -831,6 +882,7 @@ static const char *proc_wait_reason_str(int wait_reason) {
         case PROC_WAIT_CONSOLE_INPUT: return "CONSOLE_INPUT";
         case PROC_WAIT_CHILD_EXIT:    return "CHILD_EXIT";
         case PROC_WAIT_IPC_RECV:      return "IPC_RECV";
+        case PROC_WAIT_SLEEP:         return "SLEEP";
         default:                      return "UNKNOWN";
     }
 }

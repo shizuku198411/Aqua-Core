@@ -29,3 +29,5 @@ void syscall_handle_execv(struct trap_frame *f);
 void syscall_handle_getargs(struct trap_frame *f);
 void syscall_handle_getcwd(struct trap_frame *f);
 void syscall_handle_chdir(struct trap_frame *f);
+void syscall_handle_ping_tx(struct trap_frame *f);
+void syscall_handle_sleep(struct trap_frame *f);

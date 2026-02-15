@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "rtc.h"
+#include "process.h"
 
 static uint64_t udiv64_32_full(uint64_t n, uint32_t d, uint32_t *rem_out) {
     uint64_t q = 0;
@@ -41,4 +42,9 @@ void syscall_handle_gettime(struct trap_frame *f) {
     uint64_t sec = udiv64_32_full(rtc_now_ns(), 1000000000u, &nsec);
     write_user_time_info(info_ptr, sec, nsec);
     f->a0 = 0;
+}
+
+void syscall_handle_sleep(struct trap_frame *f) {
+    uint32_t ms = (uint32_t) f->a0;
+    f->a0 = process_sleep_current(ms);
 }

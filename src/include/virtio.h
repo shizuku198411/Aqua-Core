@@ -50,3 +50,6 @@
 #define VIRTIO_RING_F_INDIRECT_DESC  28u
 #define VIRTIO_RING_F_EVENT_IDX      29u
 #define VIRTIO_F_VERSION_1           32u
+
+// Virtio-net feature bits (device features sel=0).
+#define VIRTIO_NET_F_MAC             5u

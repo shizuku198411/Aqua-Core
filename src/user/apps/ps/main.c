@@ -23,6 +23,8 @@ char *proc_wait_reason_to_string(int wait_reason) {
             return "CONSOLE_INPUT";
         case PROC_WAIT_IPC_RECV:
             return "IPC_RECV";
+        case PROC_WAIT_SLEEP:
+            return "SLEEP";
         case PROC_WAIT_NONE:
             return "";
         default:

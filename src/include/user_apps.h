@@ -41,3 +41,6 @@
 
 #define APP_ID_BITMAP       15
 #define APP_NAME_BITMAP     "bitmap"
+
+#define APP_ID_PING         16
+#define APP_NAME_PING       "ping"

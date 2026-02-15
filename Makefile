@@ -20,6 +20,10 @@ QEMU_OPT := -machine virt -bios default -nographic -serial mon:stdio --no-reboot
 
 DISK_IMG := $(BIN_DIR)/disk.img
 DISK_SIZE := 16M
+QEMU_BLK_OPT = -drive file=$(DISK_IMG),if=none,format=raw,id=hd0 -device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0
+QEMU_NETDEV_USER = -netdev user,id=net0
+QEMU_NETDEV_TAP = -netdev tap,id=net0,ifname=tap0,script=no,downscript=no,vhost=off,vnet_hdr=off
+QEMU_NET_DEVICE = -device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0
 
 # kernel
 KERNEL_ELF := $(BIN_DIR)/kernel.elf
@@ -81,8 +85,12 @@ KERNEL_INFO_OBJ := $(OBJ_DIR)/kernel_info.bin.o
 BITMAP_ELF := $(BIN_DIR)/bitmap.elf
 BITMAP_BIN := $(BIN_DIR)/bitmap.bin
 BITMAP_OBJ := $(OBJ_DIR)/bitmap.bin.o
+# ping
+PING_ELF := $(BIN_DIR)/ping.elf
+PING_BIN := $(BIN_DIR)/ping.bin
+PING_OBJ := $(OBJ_DIR)/ping.bin.o
 
-.PHONY: all build run start debug release run-debug run-release start-debug start-release qemu-debug clean distclean dirs disk
+.PHONY: all build run start debug release run-debug run-release start-debug start-release qemu-debug run-usernet start-usernet qemu-debug-usernet run-tap start-tap qemu-debug-tap run-tap-dump clean distclean dirs disk
 
 all: build
 
@@ -252,10 +260,21 @@ $(BITMAP_BIN): $(BITMAP_ELF)
 $(BITMAP_OBJ): $(BITMAP_BIN)
 	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(BITMAP_BIN) $@
 
+# ping
+$(PING_ELF): dirs
+	$(CC) $(CFLAGS) -Wl,-T$(USER_SRC_DIR)/user.ld -Wl,-Map=$(MAP_DIR)/ping.map -o $@ \
+		$(USER_RUNTIME_DIR)/*.c $(USER_APPS_DIR)/ping/*.c $(LIB_SRC_DIR)/commonlibs.c
+
+$(PING_BIN): $(PING_ELF)
+	$(OBJCOPY) --set-section-flags .bss=alloc,contents -O binary $< $@
+
+$(PING_OBJ): $(PING_BIN)
+	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(PING_BIN) $@
+
 
 $(KERNEL_ELF): $(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 	$(MKDIR_OBJ) $(RMDIR_OBJ) $(TOUCH_OBJ) $(RM_OBJ) $(WRITE_OBJ) $(CAT_OBJ) \
-	$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ)
+	$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ) $(PING_OBJ)
 	$(CC) $(CFLAGS) -Wl,-T$(KERNEL_SRC_DIR)/kernel.ld -Wl,-Map=$(MAP_DIR)/kernel.map -o $@ \
 		$(LIB_SRC_DIR)/commonlibs.c \
 		$(KERNEL_SRC_DIR)/kernel.c \
@@ -269,7 +288,7 @@ $(KERNEL_ELF): $(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 		$(KERNEL_SRC_DIR)/platform/*.c \
 			$(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 			$(MKDIR_OBJ) $(RMDIR_OBJ) $(TOUCH_OBJ) $(RM_OBJ) $(WRITE_OBJ) $(CAT_OBJ) \
-			$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ)
+			$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ) $(PING_OBJ)
 
 disk: dirs
 	@if [ ! -f "$(DISK_IMG)" ]; then \
@@ -278,9 +297,9 @@ disk: dirs
 
 run: $(KERNEL_ELF) disk
 	$(QEMU) $(QEMU_OPT) \
-		-drive file=$(DISK_IMG),if=none,format=raw,id=hd0 \
-		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
-		-device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0 -netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NET_DEVICE) \
 		-kernel $(KERNEL_ELF)
 
 run-debug:
@@ -291,9 +310,9 @@ run-release:
 
 start: disk
 	$(QEMU) $(QEMU_OPT) \
-		-drive file=$(DISK_IMG),if=none,format=raw,id=hd0 \
-		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
-		-device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0 -netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NET_DEVICE) \
 		-kernel $(KERNEL_ELF)
 
 start-debug:
@@ -304,9 +323,60 @@ start-release:
 
 qemu-debug:
 	$(QEMU) $(QEMU_OPT) -S -s \
-		-drive file=$(DISK_IMG),if=none,format=raw,id=hd0 \
-		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
-		-device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0 -netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NET_DEVICE) \
+		-kernel $(KERNEL_ELF)
+
+run-usernet: $(KERNEL_ELF) disk
+	$(QEMU) $(QEMU_OPT) \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_USER) \
+		$(QEMU_NET_DEVICE) \
+		-kernel $(KERNEL_ELF)
+
+start-usernet: disk
+	$(QEMU) $(QEMU_OPT) \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_USER) \
+		$(QEMU_NET_DEVICE) \
+		-kernel $(KERNEL_ELF)
+
+qemu-debug-usernet:
+	$(QEMU) $(QEMU_OPT) -S -s \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_USER) \
+		$(QEMU_NET_DEVICE) \
+		-kernel $(KERNEL_ELF)
+
+run-tap: $(KERNEL_ELF) disk
+	$(QEMU) $(QEMU_OPT) \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NET_DEVICE) \
+		-kernel $(KERNEL_ELF)
+
+start-tap: disk
+	$(QEMU) $(QEMU_OPT) \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NET_DEVICE) \
+		-kernel $(KERNEL_ELF)
+
+qemu-debug-tap:
+	$(QEMU) $(QEMU_OPT) -S -s \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NET_DEVICE) \
+		-kernel $(KERNEL_ELF)
+
+run-tap-dump: $(KERNEL_ELF) disk
+	rm -f /tmp/aquacore-tap.pcap
+	$(QEMU) $(QEMU_OPT) \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NET_DEVICE) \
+		-object filter-dump,id=f1,netdev=net0,file=/tmp/aquacore-tap.pcap \
 		-kernel $(KERNEL_ELF)
 
 clean:
@@ -324,7 +394,8 @@ clean:
 		$(CAT_ELF) $(CAT_BIN) $(CAT_OBJ) \
 		$(KILL_ELF) $(KILL_BIN) $(KILL_OBJ) \
 		$(KERNEL_INFO_ELF) $(KERNEL_INFO_BIN) $(KERNEL_INFO_OBJ) \
-		$(BITMAP_ELF) $(BITMAP_BIN) $(BITMAP_OBJ)
+		$(BITMAP_ELF) $(BITMAP_BIN) $(BITMAP_OBJ) \
+		$(PING_ELF) $(PING_BIN) $(PING_OBJ)
 	rm -f $(MAP_DIR)/*.map
 
 distclean: clean

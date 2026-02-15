@@ -114,6 +114,10 @@ int gettime(struct time_spec *out) {
     return syscall(SYSCALL_GETTIME, (int) out, 0, 0);
 }
 
+int sleep(uint32_t ms) {
+    return syscall(SYSCALL_SLEEP, (int) ms, 0, 0);
+}
+
 int fork(void) {
     return syscall(SYSCALL_FORK, 0, 0, 0);
 }
@@ -140,4 +144,8 @@ int getcwd(char *cwd_path) {
 
 int chdir(const char *path) {
     return syscall(SYSCALL_CHDIR, (int) path, 0, 0);
+}
+
+int ping_tx(uint32_t dst_ip, uint16_t id, uint16_t seq) {
+    return syscall(SYSCALL_PING_TX, (int) dst_ip, (int) id, (int) seq);
 }

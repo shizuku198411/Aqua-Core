@@ -454,6 +454,9 @@ static int app_map(const char *name) {
     else if (strcmp(name, APP_NAME_BITMAP) == 0) {
         return APP_ID_BITMAP;
     }
+    else if (strcmp(name, APP_NAME_PING) == 0) {
+        return APP_ID_PING;
+    }
     else {
         return -1;
     }

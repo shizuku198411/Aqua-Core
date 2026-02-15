@@ -31,6 +31,8 @@
 #define SYSCALL_GETROOTFS   26
 #define SYSCALL_GETCWD      27
 #define SYSCALL_CHDIR       28
+#define SYSCALL_PING_TX     29
+#define SYSCALL_SLEEP       30
 
 
 void handle_syscall(struct trap_frame *f);

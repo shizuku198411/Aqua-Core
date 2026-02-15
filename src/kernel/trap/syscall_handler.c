@@ -113,6 +113,14 @@ void handle_syscall(struct trap_frame *f) {
             syscall_handle_chdir(f);
             break;
 
+        case SYSCALL_PING_TX:
+            syscall_handle_ping_tx(f);
+            break;
+
+        case SYSCALL_SLEEP:
+            syscall_handle_sleep(f);
+            break;
+
         default:
             PANIC("undefined system call");
     }
