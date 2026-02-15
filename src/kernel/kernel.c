@@ -10,6 +10,7 @@
 #include "fs_internal.h"
 #include "blockdev.h"
 #include "rtc.h"
+#include "net.h"
 
 
 extern char __bss[], __bss_end[], __stack_top[];
@@ -184,6 +185,12 @@ void kernel_bootstrap(void) {
     printf("[*] initialize filesystem...");
     fs_init();
 
+    // initialize network
+    printf("[*] initialize network...\n");
+    if (net_init() < 0) {
+        printf("SKIP\n");
+    }
+    
     // init rtc
     printf("[*] initialize real-time clock...");
     if (rtc_init() < 0) {

@@ -974,18 +974,17 @@ uint32_t fs_get_pfs_image_blocks(void) {
 }
 
 int fs_get_root_entry(int *mount_idx, int *node_idx) {
-    if (!mount_idx || !node_idx) return -1;
-    struct vfs_mount *m = NULL;
-    const char *subpath = NULL;
+    if (!mount_idx || !node_idx) {
+        return -1;
+    }
 
-    if (vfs_resolve_mount("/", &m, &subpath) < 0) return -1;
+    // Root node is always index 0 in nodefs.
+    if (rootfs.mount_idx < 0) {
+        return -1;
+    }
 
-    struct nodefs *fs = (struct nodefs *)m->ctx;
-    int node = nodefs_resolve_path(fs, "/");
-    if (node < 0 || fs->nodes[node].type != FS_TYPE_DIR) return -1;
-
-    *mount_idx = fs->mount_idx;
-    *node_idx = node;
+    *mount_idx = rootfs.mount_idx;
+    *node_idx = 0;
     return 0;
 }
 
@@ -995,12 +994,13 @@ int fs_get_path_entry(int *mount_idx, int *node_idx, const char *path) {
     const char *subpath = NULL;
 
     if (vfs_resolve_mount(path, &m, &subpath) < 0) return -1;
+    if (!m || !m->ctx || !subpath) return -1;
 
     struct nodefs *fs = (struct nodefs *)m->ctx;
     int node = nodefs_resolve_path(fs, subpath);
     if (node < 0 || fs->nodes[node].type != FS_TYPE_DIR) return -1;
 
-    *mount_idx = fs->mount_idx;
+    *mount_idx = (int) (m - mounts);
     *node_idx = node;
     return 0;
 }

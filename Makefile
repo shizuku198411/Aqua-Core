@@ -262,6 +262,7 @@ $(KERNEL_ELF): $(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 		$(KERNEL_SRC_DIR)/mm/*.c \
 		$(KERNEL_SRC_DIR)/proc/*.c \
 		$(KERNEL_SRC_DIR)/fs/*.c \
+		$(KERNEL_SRC_DIR)/net/*.c \
 		$(KERNEL_SRC_DIR)/rtc/*.c \
 		$(KERNEL_SRC_DIR)/trap/*.c \
 		$(KERNEL_SRC_DIR)/time/*.c \
@@ -279,6 +280,7 @@ run: $(KERNEL_ELF) disk
 	$(QEMU) $(QEMU_OPT) \
 		-drive file=$(DISK_IMG),if=none,format=raw,id=hd0 \
 		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
+		-device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0 -netdev user,id=net0 \
 		-kernel $(KERNEL_ELF)
 
 run-debug:
@@ -291,6 +293,7 @@ start: disk
 	$(QEMU) $(QEMU_OPT) \
 		-drive file=$(DISK_IMG),if=none,format=raw,id=hd0 \
 		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
+		-device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0 -netdev user,id=net0 \
 		-kernel $(KERNEL_ELF)
 
 start-debug:
@@ -303,6 +306,7 @@ qemu-debug:
 	$(QEMU) $(QEMU_OPT) -S -s \
 		-drive file=$(DISK_IMG),if=none,format=raw,id=hd0 \
 		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
+		-device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0 -netdev user,id=net0 \
 		-kernel $(KERNEL_ELF)
 
 clean:
