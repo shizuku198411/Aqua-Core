@@ -7,6 +7,7 @@
 #define PROC_NAME_MAX 16
 #define PROC_EXEC_ARGV_MAX 8
 #define PROC_EXEC_ARG_LEN  32
+#define PROC_PID_MAX  10000
 
 // status
 #define PROC_UNUSED     0
