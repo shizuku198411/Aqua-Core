@@ -2,7 +2,7 @@
     application#3: ipc_rx
 */
 
-#include "commonlibs.h"
+#include "core/commonlibs.h"
 #include "user_syscall.h"
 
 static int parse_int_local(const char *s, int *out) {

@@ -1,7 +1,7 @@
-#include "stdtypes.h"
-#include "commonlibs.h"
-#include "memory.h"
-#include "kernel.h"
+#include "core/stdtypes.h"
+#include "core/commonlibs.h"
+#include "mm/memory.h"
+#include "kernel/kernel.h"
 
 extern char __free_ram[], __free_ram_end[];
 

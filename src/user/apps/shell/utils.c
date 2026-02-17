@@ -1,10 +1,10 @@
 #include "shell.h"
-#include "syscall.h"
-#include "commonlibs.h"
-#include "process.h"
+#include "user/syscall.h"
+#include "core/commonlibs.h"
+#include "proc/process.h"
 #include "user_syscall.h"
-#include "user_apps.h"
-#include "fs.h"
+#include "user/apps.h"
+#include "fs/fs.h"
 
 static int shell_output_fd = -1;
 static int shell_input_fd = -1;

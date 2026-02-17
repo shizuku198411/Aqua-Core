@@ -1,5 +1,5 @@
 #include "user_syscall.h"
-#include "commonlibs.h"
+#include "core/commonlibs.h"
 
 static int parse_int_local(const char *s, int *out) {
     int value = 0;

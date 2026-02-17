@@ -1,6 +1,6 @@
 #pragma once
 
-#include "stdtypes.h"
+#include "core/stdtypes.h"
 
 #define NET_ETH_ADDR_LEN        6u
 #define NET_ETH_HDR_LEN         14u
@@ -25,6 +25,26 @@ uint32_t net_hton32(uint32_t v);
 #define net_ntoh32(v) net_hton32(v)
 
 uint16_t net_checksum16(const void *data, size_t len);
+
+int net_build_ethernet_header(
+    uint8_t *out,
+    size_t out_cap,
+    const uint8_t src_mac[NET_ETH_ADDR_LEN],
+    const uint8_t dst_mac[NET_ETH_ADDR_LEN],
+    uint16_t eth_type
+);
+
+int net_build_ipv4_header(
+    uint8_t *out,
+    size_t out_cap,
+    uint16_t total_len,
+    uint16_t ident,
+    uint16_t flags_frag,
+    uint8_t ttl,
+    uint8_t protocol,
+    uint32_t src_ip,
+    uint32_t dst_ip
+);
 
 int net_build_icmp_echo_request(
     uint8_t *out,

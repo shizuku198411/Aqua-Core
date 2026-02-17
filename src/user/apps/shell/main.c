@@ -3,12 +3,12 @@
 */
 
 #include "shell.h"
-#include "commonlibs.h"
+#include "core/commonlibs.h"
 #include "user_syscall.h"
 #include "commands_sys.h"
-#include "syscall.h"
-#include "user_apps.h"
-#include "fs.h"
+#include "user/syscall.h"
+#include "user/apps.h"
+#include "fs/fs.h"
 
 static const char *shell_app_names[] = {
     APP_NAME_SHELL,

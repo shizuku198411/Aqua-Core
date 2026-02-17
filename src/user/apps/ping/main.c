@@ -1,8 +1,8 @@
-#include "commonlibs.h"
+#include "core/commonlibs.h"
 #include "user_syscall.h"
-#include "net.h"
-#include "rtc.h"
-#include "fs.h"
+#include "net/net.h"
+#include "time/rtc.h"
+#include "fs/fs.h"
 
 #define PING_ID        0x1234u
 #define PING_SEQ_START 1u

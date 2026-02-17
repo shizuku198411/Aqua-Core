@@ -1,9 +1,9 @@
 #pragma once
 
-#include "kernel.h"
-#include "process.h"
-#include "fs.h"
-#include "rtc.h"
+#include "kernel/kernel.h"
+#include "proc/process.h"
+#include "fs/fs.h"
+#include "time/rtc.h"
 
 void putchar(char ch);
 long getchar(void);

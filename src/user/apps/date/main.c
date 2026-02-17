@@ -1,6 +1,6 @@
-#include "commonlibs.h"
+#include "core/commonlibs.h"
 #include "user_syscall.h"
-#include "rtc.h"
+#include "time/rtc.h"
 
 int main(int argc, char **argv) {
     (void) argc;

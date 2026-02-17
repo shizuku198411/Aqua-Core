@@ -1,11 +1,10 @@
-#include "net.h"
-#include "net_packet.h"
-#include "net_arp.h"
-#include "commonlibs.h"
+#include "net/net.h"
+#include "net/packet.h"
+#include "net/arp.h"
+#include "core/commonlibs.h"
 
 #define NET_PING_FRAME_CAP  1514u
 #define NET_PING_PAYLOAD    "aquacore-ping"
-#define NET_PING_SRC_IP     0x0a00020fu  // 10.0.2.15
 #define NET_PING_RX_POLL_LIMIT  3000000u
 #define NET_DEV_PING_MAGIC  0x50494e47u  // "PING"
 
@@ -82,6 +81,9 @@ int net_ping_send_once(uint32_t dst_ip, uint16_t id, uint16_t seq) {
         return NET_ERR_INVAL;
     }
 
+    uint32_t src_ip = net_ipv4_source_addr();
+    uint32_t next_hop = net_ipv4_next_hop(dst_ip);
+
     uint8_t src_mac[NET_ETH_ADDR_LEN];
     int mac_ret = net_get_mac(src_mac);
     if (mac_ret < 0) {
@@ -89,7 +91,7 @@ int net_ping_send_once(uint32_t dst_ip, uint16_t id, uint16_t seq) {
     }
 
     uint8_t dst_mac[NET_ETH_ADDR_LEN];
-    int arp_ret = net_arp_resolve(NET_PING_SRC_IP, dst_ip, dst_mac);
+    int arp_ret = net_arp_resolve(src_ip, next_hop, dst_mac);
     if (arp_ret < 0) {
         return arp_ret;
     }
@@ -100,7 +102,7 @@ int net_ping_send_once(uint32_t dst_ip, uint16_t id, uint16_t seq) {
                                                 sizeof(frame),
                                                 src_mac,
                                                 dst_mac,
-                                                NET_PING_SRC_IP,
+                                                src_ip,
                                                 dst_ip,
                                                 id,
                                                 seq,
@@ -122,7 +124,7 @@ int net_ping_send_once(uint32_t dst_ip, uint16_t id, uint16_t seq) {
         size_t rx_len = 0;
         int rx_ret = net_rx_try_dequeue(&rx_frame, &rx_len);
         if (rx_ret == 0) {
-            if (match_icmp_echo_reply(rx_frame, rx_len, dst_ip, NET_PING_SRC_IP, id, seq)) {
+            if (match_icmp_echo_reply(rx_frame, rx_len, dst_ip, src_ip, id, seq)) {
                 return 0;
             }
             continue;

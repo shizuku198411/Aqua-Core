@@ -1,6 +1,6 @@
 #pragma once
 
-#include "kernel.h"
+#include "kernel/kernel.h"
 
 #define SYSCALL_PUTCHAR     1
 #define SYSCALL_GETCHAR     2

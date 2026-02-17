@@ -1,9 +1,9 @@
-#include "kernel.h"
-#include "timer.h"
-#include "process.h"
-#include "stdtypes.h"
-#include "commonlibs.h"
-#include "syscall.h"
+#include "kernel/kernel.h"
+#include "time/timer.h"
+#include "proc/process.h"
+#include "core/stdtypes.h"
+#include "core/commonlibs.h"
+#include "user/syscall.h"
 
 extern struct process *current_proc;
 

@@ -1,5 +1,5 @@
 #include "user_syscall.h"
-#include "commonlibs.h"
+#include "core/commonlibs.h"
 #include "user_path.h"
 
 int main(int argc, char **argv) {

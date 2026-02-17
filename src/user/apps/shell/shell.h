@@ -1,6 +1,6 @@
 #pragma once
 
-#include "stdtypes.h"
+#include "core/stdtypes.h"
 
 #define CMDLINE_MAX 64
 #define HISTORY_MAX 64

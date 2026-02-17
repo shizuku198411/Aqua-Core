@@ -1,7 +1,7 @@
-#include "net.h"
-#include "net_packet.h"
-#include "net_arp.h"
-#include "commonlibs.h"
+#include "net/net.h"
+#include "net/packet.h"
+#include "net/arp.h"
+#include "core/commonlibs.h"
 
 #define NET_ARP_FRAME_LEN        60u
 #define NET_ARP_POLL_LIMIT       50000000u

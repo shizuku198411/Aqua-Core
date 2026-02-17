@@ -1,9 +1,9 @@
 #include "syscall_internal.h"
-#include "syscall.h"
-#include "user_apps.h"
-#include "process.h"
-#include "kernel.h"
-#include "commonlibs.h"
+#include "user/syscall.h"
+#include "user/apps.h"
+#include "proc/process.h"
+#include "kernel/kernel.h"
+#include "core/commonlibs.h"
 
 extern struct process *current_proc;
 extern struct process *init_proc;

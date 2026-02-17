@@ -1,7 +1,7 @@
-#include "net.h"
-#include "virtio.h"
-#include "stdtypes.h"
-#include "commonlibs.h"
+#include "net/net.h"
+#include "kernel/virtio.h"
+#include "core/stdtypes.h"
+#include "core/commonlibs.h"
 
 #define NET_VQ_NUM    8u
 #define NET_VQ_ALIGN  4096u

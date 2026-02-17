@@ -1,8 +1,8 @@
-#include "blockdev.h"
-#include "virtio.h"
-#include "kernel.h"
-#include "stdtypes.h"
-#include "commonlibs.h"
+#include "fs/blockdev.h"
+#include "kernel/virtio.h"
+#include "kernel/kernel.h"
+#include "core/stdtypes.h"
+#include "core/commonlibs.h"
 
 #define VIRTIO_BLK_T_IN  0u
 #define VIRTIO_BLK_T_OUT 1u

@@ -1,7 +1,7 @@
-#include "kernel.h"
-#include "syscall.h"
+#include "kernel/kernel.h"
+#include "user/syscall.h"
 #include "syscall_internal.h"
-#include "commonlibs.h"
+#include "core/commonlibs.h"
 
 void handle_syscall(struct trap_frame *f) {
     switch (f->a3) {

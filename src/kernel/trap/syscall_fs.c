@@ -1,8 +1,8 @@
 #include "syscall_internal.h"
-#include "kernel.h"
-#include "process.h"
-#include "fs_internal.h"
-#include "commonlibs.h"
+#include "kernel/kernel.h"
+#include "proc/process.h"
+#include "fs/internal.h"
+#include "core/commonlibs.h"
 
 #define SSTATUS_SUM (1u << 18)
 

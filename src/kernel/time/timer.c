@@ -1,6 +1,6 @@
-#include "kernel.h"
-#include "timer.h"
-#include "stdtypes.h"
+#include "kernel/kernel.h"
+#include "time/timer.h"
+#include "core/stdtypes.h"
 
 
 void enable_timer_interrupt(void) {

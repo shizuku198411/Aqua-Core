@@ -1,9 +1,9 @@
 #include "commands_sys.h"
-#include "commonlibs.h"
+#include "core/commonlibs.h"
 #include "user_syscall.h"
 #include "user_path.h"
 #include "shell.h"
-#include "fs.h"
+#include "fs/fs.h"
 
 void shell_cmd_history(void) {
     history_print();

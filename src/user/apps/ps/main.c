@@ -1,5 +1,5 @@
 #include "user_syscall.h"
-#include "commonlibs.h"
+#include "core/commonlibs.h"
 
 char *proc_state_to_string(int state) {
     switch (state) {

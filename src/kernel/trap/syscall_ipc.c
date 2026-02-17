@@ -1,5 +1,5 @@
 #include "syscall_internal.h"
-#include "process.h"
+#include "proc/process.h"
 
 #define SSTATUS_SUM (1u << 18)
 

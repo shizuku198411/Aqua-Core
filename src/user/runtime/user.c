@@ -1,7 +1,7 @@
 extern char __stack_top[];
 extern int main(int argc, char **argv);
 
-#include "process.h"
+#include "proc/process.h"
 #include "user_syscall.h"
 
 __attribute__((used))

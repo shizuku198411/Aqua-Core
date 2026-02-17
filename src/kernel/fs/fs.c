@@ -1,9 +1,9 @@
-#include "fs_internal.h"
-#include "process.h"
-#include "kernel.h"
-#include "commonlibs.h"
-#include "blockdev.h"
-#include "net.h"
+#include "fs/internal.h"
+#include "proc/process.h"
+#include "kernel/kernel.h"
+#include "core/commonlibs.h"
+#include "fs/blockdev.h"
+#include "net/net.h"
 
 extern void syscall_handle_getchar(struct trap_frame *f);
 

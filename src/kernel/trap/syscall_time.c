@@ -1,6 +1,6 @@
-#include "kernel.h"
-#include "rtc.h"
-#include "process.h"
+#include "kernel/kernel.h"
+#include "time/rtc.h"
+#include "proc/process.h"
 
 static uint64_t udiv64_32_full(uint64_t n, uint32_t d, uint32_t *rem_out) {
     uint64_t q = 0;

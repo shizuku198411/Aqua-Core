@@ -1,5 +1,5 @@
 #pragma once
-#include "stdtypes.h"
+#include "core/stdtypes.h"
 
 #define GOLDFISH_RTC_BASE 0x00101000u
 #define RTC_MMIO_BASE 0x00101000u

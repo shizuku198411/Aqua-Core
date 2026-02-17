@@ -1,6 +1,6 @@
 #pragma once
 
-#include "kernel.h"
+#include "kernel/kernel.h"
 
 void syscall_handle_putchar(struct trap_frame *f);
 void syscall_handle_getchar(struct trap_frame *f);

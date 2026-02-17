@@ -1,11 +1,11 @@
-#include "stdtypes.h"
-#include "commonlibs.h"
-#include "kernel.h"
-#include "memory.h"
-#include "process.h"
-#include "timer.h"
-#include "fs_internal.h"
-#include "rtc.h"
+#include "core/stdtypes.h"
+#include "core/commonlibs.h"
+#include "kernel/kernel.h"
+#include "mm/memory.h"
+#include "proc/process.h"
+#include "time/timer.h"
+#include "fs/internal.h"
+#include "time/rtc.h"
 
 
 extern char __kernel_base[], __free_ram_end[];

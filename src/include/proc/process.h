@@ -1,7 +1,7 @@
 #pragma once
 
-#include "stdtypes.h"
-#include "fs.h"
+#include "core/stdtypes.h"
+#include "fs/fs.h"
 
 #define PROCS_MAX     64
 #define PROC_NAME_MAX 16

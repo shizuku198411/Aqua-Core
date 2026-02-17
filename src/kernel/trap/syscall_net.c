@@ -1,6 +1,6 @@
 #include "syscall_internal.h"
-#include "kernel.h"
-#include "net.h"
+#include "kernel/kernel.h"
+#include "net/net.h"
 
 void syscall_handle_ping_tx(struct trap_frame *f) {
     uint32_t dst_ip = (uint32_t) f->a0;

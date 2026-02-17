@@ -1,7 +1,7 @@
-#include "process.h"
-#include "syscall.h"
-#include "fs.h"
-#include "rtc.h"
+#include "proc/process.h"
+#include "user/syscall.h"
+#include "fs/fs.h"
+#include "time/rtc.h"
 
 
 int syscall(int sysno, int arg0, int arg1, int arg2) {

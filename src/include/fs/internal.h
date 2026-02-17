@@ -1,6 +1,6 @@
 #pragma once
 
-#include "fs.h"
+#include "fs/fs.h"
 
 void fs_init(void);
 void fs_init_process_stdio(int pid);
