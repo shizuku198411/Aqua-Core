@@ -3,6 +3,7 @@
 #include "kernel/kernel.h"
 #include "mm/memory.h"
 #include "proc/process.h"
+#include "proc/signal.h"
 #include "time/timer.h"
 #include "fs/internal.h"
 #include "time/rtc.h"
@@ -18,6 +19,57 @@ struct process *init_proc;
 
 static bool need_resched;
 static uint64_t scheduler_tick_count;
+
+static void procfs_sync_best_effort(const struct process *proc);
+static int reap_child_nonblock_for_parent(int parent_pid);
+static bool has_exited_child_for_parent(int parent_pid);
+
+static void process_apply_pending_signal(struct process *proc) {
+    if (!proc || proc->state == PROC_UNUSED || proc->state == PROC_EXITED) {
+        return;
+    }
+    if (proc->pending_signal == NOSIG) {
+        return;
+    }
+
+    int sig = proc->pending_signal;
+    proc->pending_signal = NOSIG;
+
+    if (sig == SIGKILL) {
+        if (proc == init_proc) {
+            // init is protected even if pending signal was set accidentally.
+            return;
+        }
+
+        orphan_children(proc->pid);
+        proc->state = PROC_EXITED;
+        proc->wait_reason = PROC_WAIT_NONE;
+        proc->wait_pid = -1;
+        proc->sleep_deadline_tick = 0;
+        proc->ipc_has_message = 0;
+        proc->ipc_from_pid = 0;
+        proc->ipc_message = 0;
+        procfs_sync_best_effort(proc);
+        notify_child_exit(proc);
+
+        // SIGKILL semantics for current implementation: reclaim slot asap.
+        // Make zombie parentless so reap_exited_processes() can recycle it.
+        proc->parent_pid = 0;
+        need_resched = true;
+    } else if (sig == SIGCHLD) {
+        // Shell-independent zombie collection:
+        // if parent is not blocked in waitpid, reap exited children in kernel.
+        if (!(proc->state == PROC_WAITTING && proc->wait_reason == PROC_WAIT_CHILD_EXIT)) {
+            while (reap_child_nonblock_for_parent(proc->pid) > 0) {
+            }
+            // If an exited child is still unreaped (e.g. it is the currently running
+            // process inside exit/yield path), keep SIGCHLD pending and retry later.
+            if (has_exited_child_for_parent(proc->pid)) {
+                proc->pending_signal = SIGCHLD;
+            }
+        }
+    }
+}
 
 static void set_process_name(struct process *proc, const char *name) {
     for (int i = 0; i < PROC_NAME_MAX; i++) {
@@ -164,6 +216,7 @@ static void recycle_process_slot(struct process *proc) {
     proc->ipc_has_message = 0;
     proc->ipc_from_pid = 0;
     proc->ipc_message = 0;
+    proc->pending_signal = NOSIG;
     proc->sleep_deadline_tick = 0;
     clear_exec_args(proc);
 }
@@ -323,6 +376,7 @@ struct process *create_process(const void *image, size_t image_size, const char 
     proc->ipc_has_message = 0;
     proc->ipc_from_pid = 0;
     proc->ipc_message = 0;
+    proc->pending_signal = NOSIG;
     proc->sleep_deadline_tick = 0;
     clear_exec_args(proc);
     proc->root_mount_idx = root_mount_idx;
@@ -418,6 +472,7 @@ int process_fork(struct trap_frame *parent_tf) {
     child->ipc_from_pid = 0;
     child->ipc_message = 0;
     child->sleep_deadline_tick = 0;
+    child->pending_signal = NOSIG;
     child->exec_argc = current_proc->exec_argc;
     for (int i = 0; i < PROC_EXEC_ARGV_MAX; i++) {
         for (int j = 0; j < PROC_EXEC_ARG_LEN; j++) {
@@ -572,6 +627,10 @@ void scheduler_on_timer_tick(void) {
     scheduler_tick_count++;
 
     for (int i = 0; i < PROCS_MAX; i++) {
+        process_apply_pending_signal(&procs[i]);
+    }
+
+    for (int i = 0; i < PROCS_MAX; i++) {
         struct process *proc = &procs[i];
         if (proc->state == PROC_WAITTING &&
             proc->wait_reason == PROC_WAIT_SLEEP &&
@@ -607,6 +666,9 @@ bool scheduler_should_yield(void) {
 
 
 void yield(void) {
+    for (int i = 0; i < PROCS_MAX; i++) {
+        process_apply_pending_signal(&procs[i]);
+    }
     reap_exited_processes();
 
     while (1) {
@@ -683,14 +745,14 @@ void notify_child_exit(struct process *child) {
     int parent_pid = child->parent_pid;
     for (int i = 0; i < PROCS_MAX; i++) {
         struct process *proc = &procs[i];
-        if (proc->pid != parent_pid || proc->state != PROC_WAITTING) {
+        if (proc->pid != parent_pid || proc->state == PROC_UNUSED || proc->state == PROC_EXITED) {
             continue;
         }
-        if (proc->wait_reason != PROC_WAIT_CHILD_EXIT) {
-            continue;
-        }
-
-        if (proc->wait_pid == -1 || proc->wait_pid == child->pid) {
+        // deliver SIGCHLD regardless of parent's current state.
+        proc->pending_signal = SIGCHLD;
+        if (proc->state == PROC_WAITTING &&
+            proc->wait_reason == PROC_WAIT_CHILD_EXIT &&
+            (proc->wait_pid == -1 || proc->wait_pid == child->pid)) {
             proc->state = PROC_RUNNABLE;
             proc->wait_reason = PROC_WAIT_NONE;
             proc->wait_pid = -1;
@@ -713,7 +775,7 @@ void orphan_children(int parent_pid) {
 }
 
 
-int wait_for_child_exit(int parent_pid, int target_pid) {
+int wait_for_child_exit(int parent_pid, int target_pid, int options) {
     if (parent_pid <= 0) {
         return -1;
     }
@@ -733,6 +795,11 @@ int wait_for_child_exit(int parent_pid, int target_pid) {
 
             has_child = true;
             if (proc->state == PROC_EXITED) {
+                // Never recycle the process currently running on this CPU.
+                // It can be in exit()->yield() path and still using its kernel stack/PT.
+                if (proc == current_proc) {
+                    continue;
+                }
                 int exited_pid = proc->pid;
                 recycle_process_slot(proc);
                 return exited_pid;
@@ -743,12 +810,39 @@ int wait_for_child_exit(int parent_pid, int target_pid) {
             return -1;
         }
 
+        if (options & WAITPID_NOHANG) {
+            return 0;
+        }
+
         current_proc->wait_reason = PROC_WAIT_CHILD_EXIT;
         current_proc->wait_pid = target_pid;
         current_proc->state = PROC_WAITTING;
         procfs_sync_best_effort(current_proc);
         yield();
     }
+}
+
+static int reap_child_nonblock_for_parent(int parent_pid) {
+    return wait_for_child_exit(parent_pid, -1, WAITPID_NOHANG);
+}
+
+static bool has_exited_child_for_parent(int parent_pid) {
+    if (parent_pid <= 0) {
+        return false;
+    }
+    for (int i = 0; i < PROCS_MAX; i++) {
+        struct process *proc = &procs[i];
+        if (proc->state == PROC_UNUSED) {
+            continue;
+        }
+        if (proc->parent_pid != parent_pid) {
+            continue;
+        }
+        if (proc->state == PROC_EXITED) {
+            return true;
+        }
+    }
+    return false;
 }
 
 
@@ -845,26 +939,9 @@ int process_kill(int target_pid) {
         return -3;
     }
 
-    int killed_pid = target->pid;
-    orphan_children(target->pid);
-    target->state = PROC_EXITED;
-    target->wait_reason = PROC_WAIT_NONE;
-    target->wait_pid = -1;
-    target->sleep_deadline_tick = 0;
-    procfs_sync_best_effort(target);
-    notify_child_exit(target);
-
-    if (target == current_proc) {
-        // Self-kill cannot free current stack/context immediately.
-        target->parent_pid = 0;
-        yield();
-        PANIC("killed process resumed unexpectedly");
-    }
-
-    // kill command semantics: reclaim target slot immediately.
-    target->parent_pid = 0;
-    recycle_process_slot(target);
-    return killed_pid;
+    target->pending_signal = SIGKILL;
+    need_resched = true;
+    return target->pid;
 }
 
 static const char *proc_state_str(int state) {

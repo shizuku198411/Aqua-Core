@@ -1,6 +1,7 @@
 #include "kernel/kernel.h"
 #include "time/rtc.h"
 #include "proc/process.h"
+#include "kernel/page_access.h"
 
 static uint64_t udiv64_32_full(uint64_t n, uint32_t d, uint32_t *rem_out) {
     uint64_t q = 0;
@@ -26,14 +27,11 @@ static void write_user_time_info(struct time_spec *user_ptr, uint64_t sec, uint3
         return;
     }
 
-    uint32_t sstatus = READ_CSR(sstatus);
-    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
-
+    uint32_t sstatus = sum_enter();
     user_ptr->sec_lo = (uint32_t) sec;
     user_ptr->sec_hi = (uint32_t) (sec >> 32);
     user_ptr->nsec = nsec;
-
-    WRITE_CSR(sstatus, sstatus);
+    sum_leave(sstatus);
 }
 
 void syscall_handle_gettime(struct trap_frame *f) {

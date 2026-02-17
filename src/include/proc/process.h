@@ -22,6 +22,7 @@
 #define PROC_WAIT_SLEEP         4
 
 #define SCHED_TIME_SLICE_TICKS  3
+#define WAITPID_NOHANG          1
 
 
 struct process {
@@ -40,6 +41,7 @@ struct process {
     int         ipc_has_message;        // single-slot mailbox state
     int         ipc_from_pid;           // mailbox sender pid
     uint32_t    ipc_message;            // mailbox payload
+    int         pending_signal;         // pending signal
     int         exec_argc;              // argc for current image
     char        exec_argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN];
     int         root_mount_idx;         // root mount index
@@ -63,6 +65,8 @@ struct ps_info {
     int  state;
     int  wait_reason;
     char name[PROC_NAME_MAX];
+    int  argc;
+    char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN];
 };
 
 struct trap_frame;
@@ -78,7 +82,7 @@ struct process *create_process(const void *image, size_t image_size, const char 
 void wakeup_input_waiters(void);
 void notify_child_exit(struct process *child);
 void orphan_children(int parent_pid);
-int wait_for_child_exit(int parent_pid, int target_pid);
+int wait_for_child_exit(int parent_pid, int target_pid, int options);
 void scheduler_on_timer_tick(void);
 bool scheduler_should_yield(void);
 int process_ipc_send(int src_pid, int dst_pid, uint32_t message);

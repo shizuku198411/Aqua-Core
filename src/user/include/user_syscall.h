@@ -11,6 +11,7 @@ int ps(int index, struct ps_info *info);
 int clone(int app_id);
 int spawn(int app_id);
 int waitpid(int pid);
+int waitpid_opts(int pid, int options);
 int ipc_send(int pid, int message);
 int ipc_recv(int *from_pid);
 int bitmap(int index);

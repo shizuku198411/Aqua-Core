@@ -1,15 +1,14 @@
+#include "kernel/kernel.h"
 #include "syscall_internal.h"
 #include "proc/process.h"
-
-#define SSTATUS_SUM (1u << 18)
+#include "kernel/page_access.h"
 
 extern struct process *current_proc;
 
 static void write_user_int(int *user_ptr, int value) {
-    uint32_t sstatus = READ_CSR(sstatus);
-    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
+    uint32_t sstatus = sum_enter();
     *user_ptr = value;
-    WRITE_CSR(sstatus, sstatus);
+    sum_leave(sstatus);
 }
 
 void syscall_handle_ipc_send(struct trap_frame *f) {

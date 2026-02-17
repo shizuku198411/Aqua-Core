@@ -3,10 +3,11 @@
 #include "proc/process.h"
 #include "fs/internal.h"
 #include "core/commonlibs.h"
-
-#define SSTATUS_SUM (1u << 18)
+#include "kernel/page_access.h"
 
 extern struct process *current_proc;
+
+#define KERNEL_BUFF_SIZE 256
 
 void syscall_handle_open(struct trap_frame *f) {
     if (!current_proc) {
@@ -14,18 +15,14 @@ void syscall_handle_open(struct trap_frame *f) {
         return;
     }
 
-    const char *path = (const char *) f->a0;
-    int flags = (int) f->a1;
-
-    if (!path) {
+    char path[FS_PATH_MAX];
+    if (copyinstr(path, (const char *) f->a0, FS_PATH_MAX) < 0) {
         f->a0 = -1;
         return;
     }
+    int flags = (int) f->a1;
 
-    uint32_t sstatus = READ_CSR(sstatus);
-    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
     int ret = fs_open(current_proc->pid, path, flags);
-    WRITE_CSR(sstatus, sstatus);
 
     f->a0 = ret;
 }
@@ -46,20 +43,46 @@ void syscall_handle_read(struct trap_frame *f) {
     }
 
     int fd = (int) f->a0;
-    void *buf = (void *) f->a1;
-    size_t size = (size_t) f->a2;
+    void *user_buf = (void *) f->a1;
+    size_t req = (size_t) f->a2;
 
-    if (!buf && size > 0) {
+    if (!user_buf && req > 0) {
         f->a0 = -1;
         return;
     }
+    if (req == 0) {
+        f->a0 = 0;
+        return;
+    }
+    
+    uint8_t kbuf[KERNEL_BUFF_SIZE];
+    size_t done = 0;
+    
+    while (done < req) {
+        size_t chunk = req - done;
+        if (chunk > sizeof(kbuf)) {
+            chunk = sizeof(kbuf);
+        }
+        int n = fs_read(current_proc->pid, fd, kbuf, chunk);
+        if (n < 0) {
+            f->a0 = (done > 0) ? (int) done : -1;
+            return;
+        }
+        if (n == 0) {
+            f->a0 = (int) done;
+            return;
+        }
+        if (copyout((uint8_t *) user_buf + done, kbuf, (size_t) n) < 0) {
+            f->a0 = (done > 0) ? (int) done : -1;
+            return;
+        }
+        done += (size_t) n;
+        if ((size_t) n < chunk) {
+            break;
+        }
+    }
 
-    uint32_t sstatus = READ_CSR(sstatus);
-    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
-    int ret = fs_read(current_proc->pid, fd, buf, size);
-    WRITE_CSR(sstatus, sstatus);
-
-    f->a0 = ret;
+    f->a0 = (int) done;
 }
 
 void syscall_handle_write(struct trap_frame *f) {
@@ -69,81 +92,107 @@ void syscall_handle_write(struct trap_frame *f) {
     }
 
     int fd = (int) f->a0;
-    const void *buf = (const void *) f->a1;
-    size_t size = (size_t) f->a2;
+    const void *user_buf = (const void *) f->a1;
+    size_t req = (size_t) f->a2;
 
-    if (!buf && size > 0) {
+    if (!user_buf && req > 0) {
         f->a0 = -1;
         return;
     }
+    if (req == 0) {
+        f->a0 = 0;
+        return;
+    }
 
-    uint32_t sstatus = READ_CSR(sstatus);
-    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
-    int ret = fs_write(current_proc->pid, fd, buf, size);
-    WRITE_CSR(sstatus, sstatus);
+    uint8_t kbuf[KERNEL_BUFF_SIZE];
+    size_t done = 0;
 
-    f->a0 = ret;
+    while (done < req) {
+        size_t chunk = req - done;
+        if (chunk > sizeof(kbuf)) {
+            chunk = sizeof(kbuf);
+        }
+
+        if (copyin(kbuf, (const uint8_t *) user_buf + done, chunk) < 0) {
+            f->a0 = (done > 0) ? (int) done : -1;
+            return;
+        }
+        int n = fs_write(current_proc->pid, fd, kbuf, chunk);
+        if (n < 0) {
+            f->a0 = (done > 0) ? (int) done : -1;
+            return;
+        }
+        if (n == 0) {
+            f->a0 = (int) done;
+            return;
+        }
+        done += (size_t) n;
+        if ((size_t) n < chunk) {
+            break;
+        }
+    }
+
+    f->a0 = (int) done;
 }
 
 void syscall_handle_mkdir(struct trap_frame *f) {
-    const char *path = (const char *) f->a0;
-    if (!path) {
+    char path[FS_PATH_MAX];
+    if (copyinstr(path, (const char *) f->a0, FS_PATH_MAX) < 0) {
         f->a0 = -1;
         return;
     }
 
-    uint32_t sstatus = READ_CSR(sstatus);
-    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
     int ret = fs_mkdir(path);
-    WRITE_CSR(sstatus, sstatus);
 
     f->a0 = ret;
 }
 
 void syscall_handle_readdir(struct trap_frame *f) {
-    const char *path = (const char *) f->a0;
+    char path[FS_PATH_MAX];
+    if (copyinstr(path, (const char *) f->a0, FS_PATH_MAX) < 0) {
+        f->a0 = -1;
+        return;
+    }
     int index = (int) f->a1;
-    struct fs_dirent *out = (struct fs_dirent *) f->a2;
-
-    if (!path || !out) {
+    struct fs_dirent *user_buf = (struct fs_dirent *) f->a2;
+    if (!user_buf) {
         f->a0 = -1;
         return;
     }
 
-    uint32_t sstatus = READ_CSR(sstatus);
-    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
-    int ret = fs_readdir(path, index, out);
-    WRITE_CSR(sstatus, sstatus);
+    struct fs_dirent ent;
+    if (fs_readdir(path, index, &ent) < 0) {
+        f->a0 = -1;
+        return;
+    }
+    if (copyout(user_buf, &ent, sizeof(ent)) < 0) {
+        f->a0 = -1;
+        return;
+    }
 
-    f->a0 = ret;
+    f->a0 = 0;
 }
 
 void syscall_handle_unlink(struct trap_frame *f) {
-    const char *path = (const char *) f->a0;
-    if (!path) {
+    char path[FS_PATH_MAX];
+    if (copyinstr(path, (const char *) f->a0, FS_PATH_MAX) < 0) {
         f->a0 = -1;
         return;
     }
 
-    uint32_t sstatus = READ_CSR(sstatus);
-    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
     int ret = fs_unlink(path);
-    WRITE_CSR(sstatus, sstatus);
 
     f->a0 = ret;
 }
 
 void syscall_handle_rmdir(struct trap_frame *f) {
-    const char *path = (const char *) f->a0;
-    if (!path) {
+    char path[FS_PATH_MAX];
+    if (copyinstr(path, (const char *) f->a0, FS_PATH_MAX) < 0) {
         f->a0 = -1;
         return;
     }
 
-    uint32_t sstatus = READ_CSR(sstatus);
-    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
     int ret = fs_rmdir(path);
-    WRITE_CSR(sstatus, sstatus);
 
     f->a0 = ret;
 }
@@ -165,17 +214,16 @@ void syscall_handle_getcwd(struct trap_frame *f) {
         f->a0 = -1;
         return;
     }
-
     char *cwd_path = (char *) f->a0;
     if (!cwd_path) {
         f->a0 = -1;
         return;
     }
 
-    uint32_t sstatus = READ_CSR(sstatus);
-    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
-    strcpy_s(cwd_path, FS_PATH_MAX, current_proc->cwd_path);
-    WRITE_CSR(sstatus, sstatus);
+    if (copyout(cwd_path, current_proc->cwd_path, FS_PATH_MAX) < 0) {
+        f->a0 = -1;
+        return;
+    }
 
     f->a0 = 0;
 }
@@ -186,17 +234,11 @@ void syscall_handle_chdir(struct trap_frame *f) {
         return;
     }
 
-    const char *user_path = (const char *) f->a0;
-    if (!user_path) {
+    char path[FS_PATH_MAX];
+    if (copyinstr(path, (const char *) f->a0, FS_PATH_MAX) < 0) {
         f->a0 = -1;
         return;
     }
-
-    char path[FS_PATH_MAX];
-    uint32_t sstatus = READ_CSR(sstatus);
-    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
-    strcpy_s(path, sizeof(path), user_path);
-    WRITE_CSR(sstatus, sstatus);
 
     int mount_idx, node_idx;
     if (fs_get_path_entry(&mount_idx, &node_idx, path) < 0) {

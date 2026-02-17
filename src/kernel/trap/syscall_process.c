@@ -4,6 +4,7 @@
 #include "proc/process.h"
 #include "kernel/kernel.h"
 #include "core/commonlibs.h"
+#include "kernel/page_access.h"
 
 extern struct process *current_proc;
 extern struct process *init_proc;
@@ -169,8 +170,7 @@ static void write_user_ps_info(struct ps_info *user_ptr, const struct process *p
         return;
     }
 
-    uint32_t sstatus = READ_CSR(sstatus);
-    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
+    uint32_t sstatus = sum_enter();
 
     user_ptr->pid = proc->pid;
     user_ptr->parent_pid = proc->parent_pid;
@@ -179,8 +179,14 @@ static void write_user_ps_info(struct ps_info *user_ptr, const struct process *p
     for (int i = 0; i < PROC_NAME_MAX; i++) {
         user_ptr->name[i] = proc->name[i];
     }
+    user_ptr->argc = proc->exec_argc;
+    for (int i = 0; i < PROC_EXEC_ARGV_MAX; i++) {
+        for (int j = 0; j < PROC_EXEC_ARG_LEN; j++) {
+            user_ptr->argv[i][j] = proc->exec_argv[i][j];
+        }
+    }
 
-    WRITE_CSR(sstatus, sstatus);
+    sum_leave(sstatus);
 }
 
 void syscall_handle_exit(struct trap_frame *f) {
@@ -241,12 +247,17 @@ void syscall_handle_clone(struct trap_frame *f) {
 
 void syscall_handle_waitpid(struct trap_frame *f) {
     int target_pid = (int) f->a0;
+    int options = (int) f->a1;
     if (target_pid <= 0 && target_pid != -1) {
         f->a0 = -1;
         return;
     }
+    if ((options & ~WAITPID_NOHANG) != 0) {
+        f->a0 = -1;
+        return;
+    }
 
-    f->a0 = wait_for_child_exit(current_proc->pid, target_pid);
+    f->a0 = wait_for_child_exit(current_proc->pid, target_pid, options);
 }
 
 void syscall_handle_kill(struct trap_frame *f) {
@@ -286,15 +297,16 @@ void syscall_handle_execv(struct trap_frame *f) {
 
     int argc = 0;
     char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN];
-    uint32_t sstatus = READ_CSR(sstatus);
-    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
+
+    uint32_t sstatus = sum_enter();
     int cret = copy_user_argv((const char *const *) f->a1, &argc, argv);
-    WRITE_CSR(sstatus, sstatus);
+    sum_leave(sstatus);
+
     if (cret < 0) {
         f->a0 = -1;
         return;
     }
-
+    
     int ret = process_exec(image, image_size, name, argc, argv);
     f->a0 = (ret < 0) ? -1 : 0;
 }
@@ -306,14 +318,14 @@ void syscall_handle_getargs(struct trap_frame *f) {
         return;
     }
 
-    uint32_t sstatus = READ_CSR(sstatus);
-    WRITE_CSR(sstatus, sstatus | SSTATUS_SUM);
+    uint32_t sstatus = sum_enter();
     out->argc = current_proc->exec_argc;
     for (int i = 0; i < PROC_EXEC_ARGV_MAX; i++) {
         for (int j = 0; j < PROC_EXEC_ARG_LEN; j++) {
             out->argv[i][j] = current_proc->exec_argv[i][j];
         }
     }
-    WRITE_CSR(sstatus, sstatus);
+    sum_leave(sstatus);
+
     f->a0 = 0;
 }
