@@ -1,6 +1,6 @@
 #pragma once
 
-#include "stdtypes.h"
+#include "core/stdtypes.h"
 
 #define FS_PATH_MAX      64
 #define FS_NAME_MAX      16

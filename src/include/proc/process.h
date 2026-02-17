@@ -1,7 +1,7 @@
 #pragma once
 
-#include "stdtypes.h"
-#include "fs.h"
+#include "core/stdtypes.h"
+#include "fs/fs.h"
 
 #define PROCS_MAX     64
 #define PROC_NAME_MAX 16
@@ -19,6 +19,7 @@
 #define PROC_WAIT_CONSOLE_INPUT 1
 #define PROC_WAIT_CHILD_EXIT    2
 #define PROC_WAIT_IPC_RECV      3
+#define PROC_WAIT_SLEEP         4
 
 #define SCHED_TIME_SLICE_TICKS  3
 
@@ -47,6 +48,7 @@ struct process {
     int         cwd_mount_idx;          // cwd mount index
     int         cwd_node_idx;           // cwd node index
     char        cwd_path[FS_PATH_MAX];  // cwd path
+    uint64_t    sleep_deadline_tick;    // wakeup tick for sleep syscall
     uint8_t     stack[8192];            // kernel stack
 };
 
@@ -82,6 +84,7 @@ bool scheduler_should_yield(void);
 int process_ipc_send(int src_pid, int dst_pid, uint32_t message);
 int process_ipc_recv(int self_pid, int *from_pid, uint32_t *message);
 int process_kill(int target_pid);
+int process_sleep_current(uint32_t ms);
 int process_fork(struct trap_frame *parent_tf);
 int process_exec(const void *image,
                  size_t image_size,

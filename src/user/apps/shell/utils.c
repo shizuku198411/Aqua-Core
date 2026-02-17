@@ -1,10 +1,10 @@
 #include "shell.h"
-#include "syscall.h"
-#include "commonlibs.h"
-#include "process.h"
+#include "user/syscall.h"
+#include "core/commonlibs.h"
+#include "proc/process.h"
 #include "user_syscall.h"
-#include "user_apps.h"
-#include "fs.h"
+#include "user/apps.h"
+#include "fs/fs.h"
 
 static int shell_output_fd = -1;
 static int shell_input_fd = -1;
@@ -453,6 +453,15 @@ static int app_map(const char *name) {
     }
     else if (strcmp(name, APP_NAME_BITMAP) == 0) {
         return APP_ID_BITMAP;
+    }
+    else if (strcmp(name, APP_NAME_PING) == 0) {
+        return APP_ID_PING;
+    }
+    else if (strcmp(name, APP_NAME_UDP_SEND) == 0) {
+        return APP_ID_UDP_SEND;
+    }
+    else if (strcmp(name, APP_NAME_NSLOOKUP) == 0) {
+        return APP_ID_NSLOOKUP;
     }
     else {
         return -1;

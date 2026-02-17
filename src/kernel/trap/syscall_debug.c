@@ -1,6 +1,6 @@
 #include "syscall_internal.h"
-#include "memory.h"
-#include "kernel.h"
+#include "mm/memory.h"
+#include "kernel/kernel.h"
 
 #define SSTATUS_SUM (1u << 18)
 

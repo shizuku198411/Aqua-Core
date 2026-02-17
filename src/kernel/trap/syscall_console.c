@@ -1,7 +1,7 @@
 #include "syscall_internal.h"
-#include "syscall.h"
-#include "process.h"
-#include "commonlibs.h"
+#include "user/syscall.h"
+#include "proc/process.h"
+#include "core/commonlibs.h"
 
 extern struct process *current_proc;
 

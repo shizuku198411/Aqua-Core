@@ -1,6 +1,6 @@
 #pragma once
 
-#include "stdtypes.h"
+#include "core/stdtypes.h"
 
 // functions
 void putchar(char ch);

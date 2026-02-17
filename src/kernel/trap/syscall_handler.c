@@ -1,7 +1,7 @@
-#include "kernel.h"
-#include "syscall.h"
+#include "kernel/kernel.h"
+#include "user/syscall.h"
 #include "syscall_internal.h"
-#include "commonlibs.h"
+#include "core/commonlibs.h"
 
 void handle_syscall(struct trap_frame *f) {
     switch (f->a3) {
@@ -111,6 +111,14 @@ void handle_syscall(struct trap_frame *f) {
 
         case SYSCALL_CHDIR:
             syscall_handle_chdir(f);
+            break;
+
+        case SYSCALL_PING_TX:
+            syscall_handle_ping_tx(f);
+            break;
+
+        case SYSCALL_SLEEP:
+            syscall_handle_sleep(f);
             break;
 
         default:

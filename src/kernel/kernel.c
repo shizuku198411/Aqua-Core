@@ -1,15 +1,16 @@
-#include "kernel.h"
-#include "version.h"
-#include "timer.h"
-#include "stdtypes.h"
-#include "commonlibs.h"
-#include "memory.h"
-#include "process.h"
-#include "sbi.h"
-#include "fs.h"
-#include "fs_internal.h"
-#include "blockdev.h"
-#include "rtc.h"
+#include "kernel/kernel.h"
+#include "core/version.h"
+#include "time/timer.h"
+#include "core/stdtypes.h"
+#include "core/commonlibs.h"
+#include "mm/memory.h"
+#include "proc/process.h"
+#include "kernel/sbi.h"
+#include "fs/fs.h"
+#include "fs/internal.h"
+#include "fs/blockdev.h"
+#include "time/rtc.h"
+#include "net/net.h"
 
 
 extern char __bss[], __bss_end[], __stack_top[];
@@ -184,6 +185,12 @@ void kernel_bootstrap(void) {
     printf("[*] initialize filesystem...");
     fs_init();
 
+    // initialize network
+    printf("[*] initialize network...\n");
+    if (net_init() < 0) {
+        printf("SKIP\n");
+    }
+    
     // init rtc
     printf("[*] initialize real-time clock...");
     if (rtc_init() < 0) {

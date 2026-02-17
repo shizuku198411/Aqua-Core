@@ -41,3 +41,12 @@
 
 #define APP_ID_BITMAP       15
 #define APP_NAME_BITMAP     "bitmap"
+
+#define APP_ID_PING         16
+#define APP_NAME_PING       "ping"
+
+#define APP_ID_UDP_SEND     17
+#define APP_NAME_UDP_SEND   "udp_send"
+
+#define APP_ID_NSLOOKUP     18
+#define APP_NAME_NSLOOKUP   "nslookup"

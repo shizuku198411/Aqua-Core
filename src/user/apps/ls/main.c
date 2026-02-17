@@ -1,4 +1,4 @@
-#include "commonlibs.h"
+#include "core/commonlibs.h"
 #include "user_syscall.h"
 #include "user_path.h"
 

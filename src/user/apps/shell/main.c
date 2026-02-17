@@ -3,12 +3,12 @@
 */
 
 #include "shell.h"
-#include "commonlibs.h"
+#include "core/commonlibs.h"
 #include "user_syscall.h"
 #include "commands_sys.h"
-#include "syscall.h"
-#include "user_apps.h"
-#include "fs.h"
+#include "user/syscall.h"
+#include "user/apps.h"
+#include "fs/fs.h"
 
 static const char *shell_app_names[] = {
     APP_NAME_SHELL,
@@ -26,6 +26,9 @@ static const char *shell_app_names[] = {
     APP_NAME_KILL,
     APP_NAME_KERNEL_INFO,
     APP_NAME_BITMAP,
+    APP_NAME_PING,
+    APP_NAME_UDP_SEND,
+    APP_NAME_NSLOOKUP,
 };
 
 static int min_int(int a, int b) {
@@ -332,9 +335,6 @@ prompt:
                 if (dup2(fd_out, STDOUT) < 0) {
                     printf("dup2 failed\n");
                     fs_close(fd_out);
-                    if (stdin_redirected) {
-                        fs_close(0);
-                    }
                     goto prompt;
                 }
                 fs_close(fd_out);
@@ -362,6 +362,25 @@ prompt:
             }
         }
 
+        else if (strcmp(argv[0], "net_send_raw") == 0) {
+            if (shell_cmd_net_send_raw(argc, argv) < 0) {
+                printf("net_send_raw failed\n");
+            }
+        }
+
+        else if (strcmp(argv[0], "net_recv_raw") == 0) {
+            int max_bytes = 1600;
+            if (argc >= 2) {
+                if (parse_int(argv[1], &max_bytes) < 0) {
+                    printf("usage: net_recv_raw [max_bytes]\n");
+                    goto done_cmd;
+                }
+            }
+            if (shell_cmd_net_recv_raw(max_bytes) < 0) {
+                printf("net_recv_raw failed\n");
+            }
+        }
+
         else if (strcmp(argv[0], "exit") == 0 && argc == 1) {
             history_write();
             shell_cmd_exit();
@@ -371,9 +390,26 @@ prompt:
             bool background = is_background(argv, argc);
             run_external(argv, argc, background);
         }
+done_cmd:
 
-        if (stdout_redirected) fs_close(STDOUT);
-        if (stdin_redirected) fs_close(STDIN);
+        if (stdout_redirected) {
+            int fd_console_out = fs_open("/dev/console", O_WRONLY);
+            if (fd_console_out >= 0) {
+                (void) dup2(fd_console_out, STDOUT);
+                if (fd_console_out != STDOUT) {
+                    fs_close(fd_console_out);
+                }
+            }
+        }
+        if (stdin_redirected) {
+            int fd_console_in = fs_open("/dev/console", O_RDONLY);
+            if (fd_console_in >= 0) {
+                (void) dup2(fd_console_in, STDIN);
+                if (fd_console_in != STDIN) {
+                    fs_close(fd_console_in);
+                }
+            }
+        }
     }
 
     return 0;

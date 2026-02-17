@@ -1,46 +1,8 @@
-#include "blockdev.h"
-#include "kernel.h"
-#include "stdtypes.h"
-#include "commonlibs.h"
-
-#define VIRTIO_MMIO_BASE       0x10001000u
-#define VIRTIO_MMIO_STRIDE     0x1000u
-#define VIRTIO_MMIO_MAX_DEVS   8
-
-#define VIRTIO_MMIO_MAGIC_VALUE    0x000
-#define VIRTIO_MMIO_VERSION        0x004
-#define VIRTIO_MMIO_DEVICE_ID      0x008
-#define VIRTIO_MMIO_VENDOR_ID      0x00c
-#define VIRTIO_MMIO_DEVICE_FEATURES     0x010
-#define VIRTIO_MMIO_DEVICE_FEATURES_SEL 0x014
-#define VIRTIO_MMIO_DRIVER_FEATURES     0x020
-#define VIRTIO_MMIO_DRIVER_FEATURES_SEL 0x024
-#define VIRTIO_MMIO_QUEUE_SEL      0x030
-#define VIRTIO_MMIO_QUEUE_NUM_MAX  0x034
-#define VIRTIO_MMIO_QUEUE_NUM      0x038
-#define VIRTIO_MMIO_QUEUE_READY    0x044
-#define VIRTIO_MMIO_QUEUE_NOTIFY   0x050
-#define VIRTIO_MMIO_STATUS         0x070
-#define VIRTIO_MMIO_QUEUE_DESC_LOW  0x080
-#define VIRTIO_MMIO_QUEUE_DESC_HIGH 0x084
-#define VIRTIO_MMIO_QUEUE_AVAIL_LOW  0x090
-#define VIRTIO_MMIO_QUEUE_AVAIL_HIGH 0x094
-#define VIRTIO_MMIO_QUEUE_USED_LOW  0x0a0
-#define VIRTIO_MMIO_QUEUE_USED_HIGH 0x0a4
-#define VIRTIO_MMIO_CONFIG         0x100
-
-#define VIRTIO_MAGIC 0x74726976u
-#define VIRTIO_VENDOR 0x554d4551u
-#define VIRTIO_DEV_BLOCK 2u
-
-#define VIRTIO_STATUS_ACKNOWLEDGE 1u
-#define VIRTIO_STATUS_DRIVER      2u
-#define VIRTIO_STATUS_FEATURES_OK 8u
-#define VIRTIO_STATUS_DRIVER_OK   4u
-#define VIRTIO_STATUS_FAILED      128u
-
-#define VIRTQ_DESC_F_NEXT  1u
-#define VIRTQ_DESC_F_WRITE 2u
+#include "fs/blockdev.h"
+#include "kernel/virtio.h"
+#include "kernel/kernel.h"
+#include "core/stdtypes.h"
+#include "core/commonlibs.h"
 
 #define VIRTIO_BLK_T_IN  0u
 #define VIRTIO_BLK_T_OUT 1u
@@ -49,10 +11,6 @@
 #define VIRTIO_BLK_F_SCSI          7
 #define VIRTIO_BLK_F_CONFIG_WCE    11
 #define VIRTIO_BLK_F_MQ            12
-#define VIRTIO_F_VERSION_1         32
-#define VIRTIO_F_ANY_LAYOUT        27
-#define VIRTIO_RING_F_INDIRECT_DESC 28
-#define VIRTIO_RING_F_EVENT_IDX    29
 
 #define VQ_NUM 8
 #define VQ_ALIGN 4096

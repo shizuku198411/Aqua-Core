@@ -1,5 +1,5 @@
-#include "kernel.h"
-#include "rtc.h"
+#include "kernel/kernel.h"
+#include "time/rtc.h"
 
 static inline uint32_t rtc_read32(uint32_t off) {
     return *(volatile uint32_t *)(GOLDFISH_RTC_BASE + off);

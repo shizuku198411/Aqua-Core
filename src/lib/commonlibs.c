@@ -1,5 +1,5 @@
-#include "stdtypes.h"
-#include "commonlibs.h"
+#include "core/stdtypes.h"
+#include "core/commonlibs.h"
 
 void printf(const char *fmt, ...) {
     va_list vargs;

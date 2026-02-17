@@ -1,7 +1,7 @@
 #include "user_path.h"
 #include "user_syscall.h"
-#include "commonlibs.h"
-#include "fs.h"
+#include "core/commonlibs.h"
+#include "fs/fs.h"
 
 static int pop_component(char *path, int *len) {
     if (!path || !len) {

@@ -1,6 +1,6 @@
 #include "user_syscall.h"
-#include "commonlibs.h"
-#include "fs.h"
+#include "core/commonlibs.h"
+#include "fs/fs.h"
 #include "user_path.h"
 
 int main(int argc, char **argv) {

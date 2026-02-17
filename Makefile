@@ -20,6 +20,14 @@ QEMU_OPT := -machine virt -bios default -nographic -serial mon:stdio --no-reboot
 
 DISK_IMG := $(BIN_DIR)/disk.img
 DISK_SIZE := 16M
+QEMU_BLK_OPT = -drive file=$(DISK_IMG),if=none,format=raw,id=hd0 -device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0
+QEMU_NETDEV_USER = -netdev user,id=net0
+QEMU_NETDEV_TAP = -netdev tap,id=net0,ifname=tap0,script=no,downscript=no,vhost=off,vnet_hdr=off
+QEMU_NET_DEVICE = -device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0
+TAP_DEV ?= tap0
+TAP_ADDR ?= 10.0.2.1/24
+TAP_CIDR ?= 10.0.2.0/24
+WAN_DEV ?= wlan0
 
 # kernel
 KERNEL_ELF := $(BIN_DIR)/kernel.elf
@@ -81,8 +89,20 @@ KERNEL_INFO_OBJ := $(OBJ_DIR)/kernel_info.bin.o
 BITMAP_ELF := $(BIN_DIR)/bitmap.elf
 BITMAP_BIN := $(BIN_DIR)/bitmap.bin
 BITMAP_OBJ := $(OBJ_DIR)/bitmap.bin.o
+# ping
+PING_ELF := $(BIN_DIR)/ping.elf
+PING_BIN := $(BIN_DIR)/ping.bin
+PING_OBJ := $(OBJ_DIR)/ping.bin.o
+# udp_send
+UDP_SEND_ELF := $(BIN_DIR)/udp_send.elf
+UDP_SEND_BIN := $(BIN_DIR)/udp_send.bin
+UDP_SEND_OBJ := $(OBJ_DIR)/udp_send.bin.o
+# nslookup
+NSLOOKUP_ELF := $(BIN_DIR)/nslookup.elf
+NSLOOKUP_BIN := $(BIN_DIR)/nslookup.bin
+NSLOOKUP_OBJ := $(OBJ_DIR)/nslookup.bin.o
 
-.PHONY: all build run start debug release run-debug run-release start-debug start-release qemu-debug clean distclean dirs disk
+.PHONY: all build run start debug release run-debug run-release start-debug start-release qemu-debug run-usernet start-usernet qemu-debug-usernet run-tap start-tap qemu-debug-tap run-tap-dump tap-up tap-down tap-status nat-up nat-down nat-status clean distclean dirs disk
 
 all: build
 
@@ -252,23 +272,57 @@ $(BITMAP_BIN): $(BITMAP_ELF)
 $(BITMAP_OBJ): $(BITMAP_BIN)
 	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(BITMAP_BIN) $@
 
+# ping
+$(PING_ELF): dirs
+	$(CC) $(CFLAGS) -Wl,-T$(USER_SRC_DIR)/user.ld -Wl,-Map=$(MAP_DIR)/ping.map -o $@ \
+		$(USER_RUNTIME_DIR)/*.c $(USER_APPS_DIR)/ping/*.c $(LIB_SRC_DIR)/commonlibs.c
+
+$(PING_BIN): $(PING_ELF)
+	$(OBJCOPY) --set-section-flags .bss=alloc,contents -O binary $< $@
+
+$(PING_OBJ): $(PING_BIN)
+	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(PING_BIN) $@
+
+# udp_send
+$(UDP_SEND_ELF): dirs
+	$(CC) $(CFLAGS) -Wl,-T$(USER_SRC_DIR)/user.ld -Wl,-Map=$(MAP_DIR)/udp_send.map -o $@ \
+		$(USER_RUNTIME_DIR)/*.c $(USER_APPS_DIR)/udp_send/*.c $(LIB_SRC_DIR)/commonlibs.c
+
+$(UDP_SEND_BIN): $(UDP_SEND_ELF)
+	$(OBJCOPY) --set-section-flags .bss=alloc,contents -O binary $< $@
+
+$(UDP_SEND_OBJ): $(UDP_SEND_BIN)
+	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(UDP_SEND_BIN) $@
+
+# nslookup
+$(NSLOOKUP_ELF): dirs
+	$(CC) $(CFLAGS) -Wl,-T$(USER_SRC_DIR)/user.ld -Wl,-Map=$(MAP_DIR)/nslookup.map -o $@ \
+		$(USER_RUNTIME_DIR)/*.c $(USER_APPS_DIR)/nslookup/*.c $(LIB_SRC_DIR)/commonlibs.c
+
+$(NSLOOKUP_BIN): $(NSLOOKUP_ELF)
+	$(OBJCOPY) --set-section-flags .bss=alloc,contents -O binary $< $@
+
+$(NSLOOKUP_OBJ): $(NSLOOKUP_BIN)
+	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(NSLOOKUP_BIN) $@
+
 
 $(KERNEL_ELF): $(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 	$(MKDIR_OBJ) $(RMDIR_OBJ) $(TOUCH_OBJ) $(RM_OBJ) $(WRITE_OBJ) $(CAT_OBJ) \
-	$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ)
+	$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ) $(PING_OBJ) $(UDP_SEND_OBJ) $(NSLOOKUP_OBJ)
 	$(CC) $(CFLAGS) -Wl,-T$(KERNEL_SRC_DIR)/kernel.ld -Wl,-Map=$(MAP_DIR)/kernel.map -o $@ \
 		$(LIB_SRC_DIR)/commonlibs.c \
 		$(KERNEL_SRC_DIR)/kernel.c \
 		$(KERNEL_SRC_DIR)/mm/*.c \
 		$(KERNEL_SRC_DIR)/proc/*.c \
 		$(KERNEL_SRC_DIR)/fs/*.c \
+		$(KERNEL_SRC_DIR)/net/*.c \
 		$(KERNEL_SRC_DIR)/rtc/*.c \
 		$(KERNEL_SRC_DIR)/trap/*.c \
 		$(KERNEL_SRC_DIR)/time/*.c \
 		$(KERNEL_SRC_DIR)/platform/*.c \
 			$(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 			$(MKDIR_OBJ) $(RMDIR_OBJ) $(TOUCH_OBJ) $(RM_OBJ) $(WRITE_OBJ) $(CAT_OBJ) \
-			$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ)
+			$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ) $(PING_OBJ) $(UDP_SEND_OBJ) $(NSLOOKUP_OBJ)
 
 disk: dirs
 	@if [ ! -f "$(DISK_IMG)" ]; then \
@@ -277,8 +331,9 @@ disk: dirs
 
 run: $(KERNEL_ELF) disk
 	$(QEMU) $(QEMU_OPT) \
-		-drive file=$(DISK_IMG),if=none,format=raw,id=hd0 \
-		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NET_DEVICE) \
 		-kernel $(KERNEL_ELF)
 
 run-debug:
@@ -289,8 +344,9 @@ run-release:
 
 start: disk
 	$(QEMU) $(QEMU_OPT) \
-		-drive file=$(DISK_IMG),if=none,format=raw,id=hd0 \
-		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NET_DEVICE) \
 		-kernel $(KERNEL_ELF)
 
 start-debug:
@@ -301,9 +357,112 @@ start-release:
 
 qemu-debug:
 	$(QEMU) $(QEMU_OPT) -S -s \
-		-drive file=$(DISK_IMG),if=none,format=raw,id=hd0 \
-		-device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0 \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NET_DEVICE) \
 		-kernel $(KERNEL_ELF)
+
+run-usernet: $(KERNEL_ELF) disk
+	$(QEMU) $(QEMU_OPT) \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_USER) \
+		$(QEMU_NET_DEVICE) \
+		-kernel $(KERNEL_ELF)
+
+start-usernet: disk
+	$(QEMU) $(QEMU_OPT) \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_USER) \
+		$(QEMU_NET_DEVICE) \
+		-kernel $(KERNEL_ELF)
+
+qemu-debug-usernet:
+	$(QEMU) $(QEMU_OPT) -S -s \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_USER) \
+		$(QEMU_NET_DEVICE) \
+		-kernel $(KERNEL_ELF)
+
+run-tap: $(KERNEL_ELF) disk
+	$(QEMU) $(QEMU_OPT) \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NET_DEVICE) \
+		-kernel $(KERNEL_ELF)
+
+start-tap: disk
+	$(QEMU) $(QEMU_OPT) \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NET_DEVICE) \
+		-kernel $(KERNEL_ELF)
+
+qemu-debug-tap:
+	$(QEMU) $(QEMU_OPT) -S -s \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NET_DEVICE) \
+		-kernel $(KERNEL_ELF)
+
+run-tap-dump: $(KERNEL_ELF) disk
+	rm -f /tmp/aquacore-tap.pcap
+	$(QEMU) $(QEMU_OPT) \
+		$(QEMU_BLK_OPT) \
+		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NET_DEVICE) \
+		-object filter-dump,id=f1,netdev=net0,file=/tmp/aquacore-tap.pcap \
+		-kernel $(KERNEL_ELF)
+
+tap-up:
+	@SUDO_CMD=$$(command -v sudo >/dev/null 2>&1 && echo sudo || echo ""); \
+	if ! ip link show $(TAP_DEV) >/dev/null 2>&1; then \
+		$$SUDO_CMD ip tuntap add dev $(TAP_DEV) mode tap; \
+	fi; \
+	if ! ip -4 addr show dev $(TAP_DEV) | grep -q "$(TAP_ADDR)"; then \
+		$$SUDO_CMD ip addr add $(TAP_ADDR) dev $(TAP_DEV); \
+	fi; \
+	$$SUDO_CMD ip link set $(TAP_DEV) up; \
+	ip -4 addr show dev $(TAP_DEV)
+
+tap-down:
+	@SUDO_CMD=$$(command -v sudo >/dev/null 2>&1 && echo sudo || echo ""); \
+	if ip link show $(TAP_DEV) >/dev/null 2>&1; then \
+		$$SUDO_CMD ip link set $(TAP_DEV) down || true; \
+		$$SUDO_CMD ip tuntap del dev $(TAP_DEV) mode tap; \
+	fi
+
+tap-status:
+	@ip -4 addr show dev $(TAP_DEV)
+
+nat-up:
+	@SUDO_CMD=$$(command -v sudo >/dev/null 2>&1 && echo sudo || echo ""); \
+	$$SUDO_CMD sysctl -w net.ipv4.ip_forward=1 >/dev/null; \
+	if ! $$SUDO_CMD iptables -C FORWARD -i $(TAP_DEV) -o $(WAN_DEV) -j ACCEPT >/dev/null 2>&1; then \
+		$$SUDO_CMD iptables -A FORWARD -i $(TAP_DEV) -o $(WAN_DEV) -j ACCEPT; \
+	fi; \
+	if ! $$SUDO_CMD iptables -C FORWARD -i $(WAN_DEV) -o $(TAP_DEV) -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1; then \
+		$$SUDO_CMD iptables -A FORWARD -i $(WAN_DEV) -o $(TAP_DEV) -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT; \
+	fi; \
+	if ! $$SUDO_CMD iptables -t nat -C POSTROUTING -s $(TAP_CIDR) -o $(WAN_DEV) -j MASQUERADE >/dev/null 2>&1; then \
+		$$SUDO_CMD iptables -t nat -A POSTROUTING -s $(TAP_CIDR) -o $(WAN_DEV) -j MASQUERADE; \
+	fi; \
+	echo "NAT enabled: $(TAP_CIDR) -> $(WAN_DEV)"
+
+nat-down:
+	@SUDO_CMD=$$(command -v sudo >/dev/null 2>&1 && echo sudo || echo ""); \
+	$$SUDO_CMD iptables -t nat -D POSTROUTING -s $(TAP_CIDR) -o $(WAN_DEV) -j MASQUERADE >/dev/null 2>&1 || true; \
+	$$SUDO_CMD iptables -D FORWARD -i $(TAP_DEV) -o $(WAN_DEV) -j ACCEPT >/dev/null 2>&1 || true; \
+	$$SUDO_CMD iptables -D FORWARD -i $(WAN_DEV) -o $(TAP_DEV) -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1 || true; \
+	echo "NAT disabled: $(TAP_CIDR) -> $(WAN_DEV)"
+
+nat-status:
+	@SUDO_CMD=$$(command -v sudo >/dev/null 2>&1 && echo sudo || echo ""); \
+	echo "[ip_forward]"; \
+	$$SUDO_CMD sysctl net.ipv4.ip_forward; \
+	echo "[filter/FORWARD]"; \
+	$$SUDO_CMD iptables -S FORWARD | sed -n '1,200p'; \
+	echo "[nat/POSTROUTING]"; \
+	$$SUDO_CMD iptables -t nat -S POSTROUTING | sed -n '1,200p'
 
 clean:
 	rm -f $(KERNEL_ELF) \
@@ -320,7 +479,10 @@ clean:
 		$(CAT_ELF) $(CAT_BIN) $(CAT_OBJ) \
 		$(KILL_ELF) $(KILL_BIN) $(KILL_OBJ) \
 		$(KERNEL_INFO_ELF) $(KERNEL_INFO_BIN) $(KERNEL_INFO_OBJ) \
-		$(BITMAP_ELF) $(BITMAP_BIN) $(BITMAP_OBJ)
+		$(BITMAP_ELF) $(BITMAP_BIN) $(BITMAP_OBJ) \
+		$(PING_ELF) $(PING_BIN) $(PING_OBJ) \
+		$(UDP_SEND_ELF) $(UDP_SEND_BIN) $(UDP_SEND_OBJ) \
+		$(NSLOOKUP_ELF) $(NSLOOKUP_BIN) $(NSLOOKUP_OBJ)
 	rm -f $(MAP_DIR)/*.map
 
 distclean: clean

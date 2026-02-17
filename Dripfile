@@ -1,0 +1,7 @@
+FROM kernel_base:latest
+
+WORKDIR /aqua_core
+COPY .  .
+RUN make build
+
+ENTRYPOINT ["./raind-entrypoint.sh"]

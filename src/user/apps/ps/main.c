@@ -1,5 +1,5 @@
 #include "user_syscall.h"
-#include "commonlibs.h"
+#include "core/commonlibs.h"
 
 char *proc_state_to_string(int state) {
     switch (state) {
@@ -23,6 +23,8 @@ char *proc_wait_reason_to_string(int wait_reason) {
             return "CONSOLE_INPUT";
         case PROC_WAIT_IPC_RECV:
             return "IPC_RECV";
+        case PROC_WAIT_SLEEP:
+            return "SLEEP";
         case PROC_WAIT_NONE:
             return "";
         default:

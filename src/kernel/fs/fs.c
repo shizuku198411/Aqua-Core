@@ -1,8 +1,9 @@
-#include "fs_internal.h"
-#include "process.h"
-#include "kernel.h"
-#include "commonlibs.h"
-#include "blockdev.h"
+#include "fs/internal.h"
+#include "proc/process.h"
+#include "kernel/kernel.h"
+#include "core/commonlibs.h"
+#include "fs/blockdev.h"
+#include "net/net.h"
 
 extern void syscall_handle_getchar(struct trap_frame *f);
 
@@ -15,9 +16,15 @@ struct vfs_fd {
     int node_index;
     uint32_t offset;
     int flags;
+    int backend_type;
+    int dirty;
 };
 
 static struct vfs_fd fd_table[PROCS_MAX][FS_FD_MAX];
+
+#define FD_BACKEND_VFS     0
+#define FD_BACKEND_CONSOLE 1
+#define FD_BACKEND_NET     2
 
 struct fs_node {
     int used;
@@ -94,6 +101,22 @@ static int console_write_fallback(const void *buf, size_t size) {
         putchar((char) src[i]);
     }
     return (int) size;
+}
+
+static int console_backend_read(void *buf, size_t size) {
+    return console_read_fallback(buf, size);
+}
+
+static int console_backend_write(const void *buf, size_t size) {
+    return console_write_fallback(buf, size);
+}
+
+static int net_backend_read(void *buf, size_t size) {
+    return net_dev_read(buf, size);
+}
+
+static int net_backend_write(const void *buf, size_t size) {
+    return net_dev_write(buf, size);
 }
 
 static int copy_name(char *dst, const char *src) {
@@ -483,10 +506,6 @@ static int nodefs_write(void *ctx,
         n->size = *offset;
     }
 
-    if (pfs_sync(fs) < 0) {
-        return -1;
-    }
-
     return (int) to_write;
 }
 
@@ -709,6 +728,8 @@ static int vfs_alloc_fd(int pid, int mount_idx, int node_index, uint32_t offset,
             fd_table[pid][fd].node_index = node_index;
             fd_table[pid][fd].offset = offset;
             fd_table[pid][fd].flags = flags;
+            fd_table[pid][fd].backend_type = FD_BACKEND_VFS;
+            fd_table[pid][fd].dirty = 0;
             return fd;
         }
     }
@@ -797,6 +818,26 @@ int fs_open(int pid, const char *path, int flags) {
     if (pid < 0 || pid >= PROCS_MAX || !path) {
         return -1;
     }
+
+    if ((flags & (O_RDONLY | O_WRONLY)) == 0) {
+        flags |= O_RDWR;
+    }
+
+    if (strcmp(path, "/dev/console") == 0) {
+        int fd = vfs_alloc_fd(pid, -1, -1, 0, flags);
+        if (fd >= 0) {
+            fd_table[pid][fd].backend_type = FD_BACKEND_CONSOLE;
+        }
+        return fd;
+    }
+    if (strcmp(path, "/dev/net0") == 0) {
+        int fd = vfs_alloc_fd(pid, -1, -1, 0, flags);
+        if (fd >= 0) {
+            fd_table[pid][fd].backend_type = FD_BACKEND_NET;
+        }
+        return fd;
+    }
+
     if (vfs_resolve_mount(path, &m, &subpath) < 0) {
         return -1;
     }
@@ -818,11 +859,25 @@ int fs_close(int pid, int fd) {
         return -1;
     }
 
+    struct vfs_fd *f = &fd_table[pid][fd];
+    if (f->backend_type == FD_BACKEND_VFS &&
+        f->dirty &&
+        f->mount_idx >= 0 &&
+        f->mount_idx < VFS_MOUNT_MAX &&
+        mounts[f->mount_idx].used) {
+        struct nodefs *fs = (struct nodefs *) mounts[f->mount_idx].ctx;
+        if (fs && fs->persistent && pfs_sync(fs) < 0) {
+            return -1;
+        }
+    }
+
     fd_table[pid][fd].used = 0;
     fd_table[pid][fd].mount_idx = -1;
     fd_table[pid][fd].node_index = -1;
     fd_table[pid][fd].offset = 0;
     fd_table[pid][fd].flags = 0;
+    fd_table[pid][fd].backend_type = FD_BACKEND_VFS;
+    fd_table[pid][fd].dirty = 0;
     return 0;
 }
 
@@ -838,8 +893,15 @@ int fs_read(int pid, int fd, void *buf, size_t size) {
     }
 
     struct vfs_fd *f = &fd_table[pid][fd];
-    if ((f->flags & O_RDONLY) == 0) {
+    if ((f->flags & O_RDONLY) == 0 && (f->flags & O_RDWR) == 0) {
         return -1;
+    }
+
+    if (f->backend_type == FD_BACKEND_CONSOLE) {
+        return console_backend_read(buf, size);
+    }
+    if (f->backend_type == FD_BACKEND_NET) {
+        return net_backend_read(buf, size);
     }
 
     if (f->mount_idx < 0 || f->mount_idx >= VFS_MOUNT_MAX || !mounts[f->mount_idx].used) {
@@ -865,19 +927,33 @@ int fs_write(int pid, int fd, const void *buf, size_t size) {
     }
 
     struct vfs_fd *f = &fd_table[pid][fd];
-    if ((f->flags & O_WRONLY) == 0) {
+    if ((f->flags & O_WRONLY) == 0 && (f->flags & O_RDWR) == 0) {
         return -1;
+    }
+
+    if (f->backend_type == FD_BACKEND_CONSOLE) {
+        return console_backend_write(buf, size);
+    }
+    if (f->backend_type == FD_BACKEND_NET) {
+        return net_backend_write(buf, size);
     }
 
     if (f->mount_idx < 0 || f->mount_idx >= VFS_MOUNT_MAX || !mounts[f->mount_idx].used) {
         return -1;
     }
 
-    return mounts[f->mount_idx].ops->write(mounts[f->mount_idx].ctx,
-                                           f->node_index,
-                                           &f->offset,
-                                           buf,
-                                           size);
+    int written = mounts[f->mount_idx].ops->write(mounts[f->mount_idx].ctx,
+                                                  f->node_index,
+                                                  &f->offset,
+                                                  buf,
+                                                  size);
+    if (written > 0) {
+        struct nodefs *fs = (struct nodefs *) mounts[f->mount_idx].ctx;
+        if (fs && fs->persistent) {
+            f->dirty = 1;
+        }
+    }
+    return written;
 }
 
 int fs_mkdir(const char *path) {
@@ -966,7 +1042,37 @@ void fs_on_process_recycle(int pid) {
         fd_table[pid][fd].node_index = -1;
         fd_table[pid][fd].offset = 0;
         fd_table[pid][fd].flags = 0;
+        fd_table[pid][fd].backend_type = FD_BACKEND_VFS;
+        fd_table[pid][fd].dirty = 0;
     }
+}
+
+void fs_init_process_stdio(int pid) {
+    if (pid < 0 || pid >= PROCS_MAX) {
+        return;
+    }
+
+    for (int fd = 0; fd < FS_FD_MAX; fd++) {
+        fd_table[pid][fd].used = 0;
+        fd_table[pid][fd].mount_idx = -1;
+        fd_table[pid][fd].node_index = -1;
+        fd_table[pid][fd].offset = 0;
+        fd_table[pid][fd].flags = 0;
+        fd_table[pid][fd].backend_type = FD_BACKEND_VFS;
+        fd_table[pid][fd].dirty = 0;
+    }
+
+    fd_table[pid][0].used = 1;
+    fd_table[pid][0].flags = O_RDONLY;
+    fd_table[pid][0].backend_type = FD_BACKEND_CONSOLE;
+
+    fd_table[pid][1].used = 1;
+    fd_table[pid][1].flags = O_WRONLY;
+    fd_table[pid][1].backend_type = FD_BACKEND_CONSOLE;
+
+    fd_table[pid][2].used = 1;
+    fd_table[pid][2].flags = O_WRONLY;
+    fd_table[pid][2].backend_type = FD_BACKEND_CONSOLE;
 }
 
 uint32_t fs_get_pfs_image_blocks(void) {
@@ -974,18 +1080,17 @@ uint32_t fs_get_pfs_image_blocks(void) {
 }
 
 int fs_get_root_entry(int *mount_idx, int *node_idx) {
-    if (!mount_idx || !node_idx) return -1;
-    struct vfs_mount *m = NULL;
-    const char *subpath = NULL;
+    if (!mount_idx || !node_idx) {
+        return -1;
+    }
 
-    if (vfs_resolve_mount("/", &m, &subpath) < 0) return -1;
+    // Root node is always index 0 in nodefs.
+    if (rootfs.mount_idx < 0) {
+        return -1;
+    }
 
-    struct nodefs *fs = (struct nodefs *)m->ctx;
-    int node = nodefs_resolve_path(fs, "/");
-    if (node < 0 || fs->nodes[node].type != FS_TYPE_DIR) return -1;
-
-    *mount_idx = fs->mount_idx;
-    *node_idx = node;
+    *mount_idx = rootfs.mount_idx;
+    *node_idx = 0;
     return 0;
 }
 
@@ -995,12 +1100,13 @@ int fs_get_path_entry(int *mount_idx, int *node_idx, const char *path) {
     const char *subpath = NULL;
 
     if (vfs_resolve_mount(path, &m, &subpath) < 0) return -1;
+    if (!m || !m->ctx || !subpath) return -1;
 
     struct nodefs *fs = (struct nodefs *)m->ctx;
     int node = nodefs_resolve_path(fs, subpath);
     if (node < 0 || fs->nodes[node].type != FS_TYPE_DIR) return -1;
 
-    *mount_idx = fs->mount_idx;
+    *mount_idx = (int) (m - mounts);
     *node_idx = node;
     return 0;
 }

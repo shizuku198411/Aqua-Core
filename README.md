@@ -15,7 +15,7 @@ QEMU + OpenSBI 環境での動作を前提に実装しています。
 ### BIOSダウンロード
 以下リンクよりルート直下にBIOS(OpenSBI)をダウンロード、本リポジトリのルート直下に設置してください。
 ```bash
-curl -LO https://github.com/qemu/qemu/blob/v8.0.4/pc-bios/opensbi-riscv32-generic-fw_dynamic.bin
+curl -LO https://github.com/qemu/qemu/raw/v8.0.4/pc-bios/opensbi-riscv32-generic-fw_dynamic.bin
 ```
 
 ### Makefile
