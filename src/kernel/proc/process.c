@@ -245,7 +245,7 @@ static int alloc_pid(void) {
     }
     int i;
     for (i = 0; i < PROC_PID_MAX; i++) {
-        if (next_pid >= PROC_PID_MAX) {
+        if (next_pid > PROC_PID_MAX) {
             next_pid = 2;   // pid 0/1 is pre-reserved for idle/init process.
         }
         bool pid_used = false;
