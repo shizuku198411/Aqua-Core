@@ -1,7 +1,7 @@
 #include "user_syscall.h"
 #include "core/commonlibs.h"
 
-char *proc_state_to_string(int state) {
+static const char *proc_state_to_string(int state) {
     switch (state) {
         case PROC_RUNNABLE:
             return "RUN";
@@ -15,7 +15,7 @@ char *proc_state_to_string(int state) {
     }
 }
 
-char *proc_wait_reason_to_string(int wait_reason) {
+static const char *proc_wait_reason_to_string(int wait_reason) {
     switch (wait_reason) {
         case PROC_WAIT_CHILD_EXIT:
             return "CHILD_EXIT";
@@ -32,25 +32,56 @@ char *proc_wait_reason_to_string(int wait_reason) {
     }
 }
 
+static void build_args_string(const struct ps_info *info, char *out, size_t out_size) {
+    if (!out || out_size == 0) {
+        return;
+    }
+    out[0] = '\0';
+
+    if (!info || info->argc <= 0) {
+        return;
+    }
+
+    int argc = info->argc;
+    if (argc > PROC_EXEC_ARGV_MAX) {
+        argc = PROC_EXEC_ARGV_MAX;
+    }
+
+    for (int i = 0; i < argc; i++) {
+        if (info->argv[i][0] == '\0') {
+            continue;
+        }
+        if (out[0] != '\0') {
+            strcat_s(out, out_size, " ");
+        }
+        strcat_s(out, out_size, info->argv[i]);
+    }
+}
+
 int main(int argc, char **argv) {
     (void) argc;
     (void) argv;
-    printf("PID\tPPID\tAPP\tSTATE\tREASON\n");
-    for (int i = 1;; i++) {
+
+    printf("PID\tPPID\tSTATE\tREASON\tCMD\n");
+    for (int i = 1; i < PROCS_MAX; i++) {
         struct ps_info info;
         int ret = ps(i, &info);
         if (ret < 0) {
-            break;
+            continue;
         }
         if (info.state == PROC_UNUSED) {
             continue;
         }
+
+        char args[PROC_EXEC_ARGV_MAX * (PROC_EXEC_ARG_LEN + 1)];
+        build_args_string(&info, args, sizeof(args));
+
         printf("%d\t%d\t%s\t%s\t%s\n",
                info.pid,
                info.parent_pid,
-               info.name,
                proc_state_to_string(info.state),
-               proc_wait_reason_to_string(info.wait_reason));
+               proc_wait_reason_to_string(info.wait_reason),
+               args);
     }
     return 0;
 }

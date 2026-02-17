@@ -51,6 +51,10 @@ int waitpid(int pid) {
     return syscall(SYSCALL_WAITPID, pid, 0, 0);
 }
 
+int waitpid_opts(int pid, int options) {
+    return syscall(SYSCALL_WAITPID, pid, options, 0);
+}
+
 int ipc_send(int pid, int message) {
     return syscall(SYSCALL_IPC_SEND, pid, message, 0);
 }

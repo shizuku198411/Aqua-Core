@@ -179,6 +179,12 @@ static void write_user_ps_info(struct ps_info *user_ptr, const struct process *p
     for (int i = 0; i < PROC_NAME_MAX; i++) {
         user_ptr->name[i] = proc->name[i];
     }
+    user_ptr->argc = proc->exec_argc;
+    for (int i = 0; i < PROC_EXEC_ARGV_MAX; i++) {
+        for (int j = 0; j < PROC_EXEC_ARG_LEN; j++) {
+            user_ptr->argv[i][j] = proc->exec_argv[i][j];
+        }
+    }
 
     WRITE_CSR(sstatus, sstatus);
 }
@@ -241,12 +247,17 @@ void syscall_handle_clone(struct trap_frame *f) {
 
 void syscall_handle_waitpid(struct trap_frame *f) {
     int target_pid = (int) f->a0;
+    int options = (int) f->a1;
     if (target_pid <= 0 && target_pid != -1) {
         f->a0 = -1;
         return;
     }
+    if ((options & ~WAITPID_NOHANG) != 0) {
+        f->a0 = -1;
+        return;
+    }
 
-    f->a0 = wait_for_child_exit(current_proc->pid, target_pid);
+    f->a0 = wait_for_child_exit(current_proc->pid, target_pid, options);
 }
 
 void syscall_handle_kill(struct trap_frame *f) {
