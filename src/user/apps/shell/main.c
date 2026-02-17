@@ -27,6 +27,8 @@ static const char *shell_app_names[] = {
     APP_NAME_KERNEL_INFO,
     APP_NAME_BITMAP,
     APP_NAME_PING,
+    APP_NAME_UDP_SEND,
+    APP_NAME_NSLOOKUP,
 };
 
 static int min_int(int a, int b) {

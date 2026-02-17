@@ -93,6 +93,14 @@ BITMAP_OBJ := $(OBJ_DIR)/bitmap.bin.o
 PING_ELF := $(BIN_DIR)/ping.elf
 PING_BIN := $(BIN_DIR)/ping.bin
 PING_OBJ := $(OBJ_DIR)/ping.bin.o
+# udp_send
+UDP_SEND_ELF := $(BIN_DIR)/udp_send.elf
+UDP_SEND_BIN := $(BIN_DIR)/udp_send.bin
+UDP_SEND_OBJ := $(OBJ_DIR)/udp_send.bin.o
+# nslookup
+NSLOOKUP_ELF := $(BIN_DIR)/nslookup.elf
+NSLOOKUP_BIN := $(BIN_DIR)/nslookup.bin
+NSLOOKUP_OBJ := $(OBJ_DIR)/nslookup.bin.o
 
 .PHONY: all build run start debug release run-debug run-release start-debug start-release qemu-debug run-usernet start-usernet qemu-debug-usernet run-tap start-tap qemu-debug-tap run-tap-dump tap-up tap-down tap-status nat-up nat-down nat-status clean distclean dirs disk
 
@@ -275,10 +283,32 @@ $(PING_BIN): $(PING_ELF)
 $(PING_OBJ): $(PING_BIN)
 	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(PING_BIN) $@
 
+# udp_send
+$(UDP_SEND_ELF): dirs
+	$(CC) $(CFLAGS) -Wl,-T$(USER_SRC_DIR)/user.ld -Wl,-Map=$(MAP_DIR)/udp_send.map -o $@ \
+		$(USER_RUNTIME_DIR)/*.c $(USER_APPS_DIR)/udp_send/*.c $(LIB_SRC_DIR)/commonlibs.c
+
+$(UDP_SEND_BIN): $(UDP_SEND_ELF)
+	$(OBJCOPY) --set-section-flags .bss=alloc,contents -O binary $< $@
+
+$(UDP_SEND_OBJ): $(UDP_SEND_BIN)
+	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(UDP_SEND_BIN) $@
+
+# nslookup
+$(NSLOOKUP_ELF): dirs
+	$(CC) $(CFLAGS) -Wl,-T$(USER_SRC_DIR)/user.ld -Wl,-Map=$(MAP_DIR)/nslookup.map -o $@ \
+		$(USER_RUNTIME_DIR)/*.c $(USER_APPS_DIR)/nslookup/*.c $(LIB_SRC_DIR)/commonlibs.c
+
+$(NSLOOKUP_BIN): $(NSLOOKUP_ELF)
+	$(OBJCOPY) --set-section-flags .bss=alloc,contents -O binary $< $@
+
+$(NSLOOKUP_OBJ): $(NSLOOKUP_BIN)
+	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(NSLOOKUP_BIN) $@
+
 
 $(KERNEL_ELF): $(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 	$(MKDIR_OBJ) $(RMDIR_OBJ) $(TOUCH_OBJ) $(RM_OBJ) $(WRITE_OBJ) $(CAT_OBJ) \
-	$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ) $(PING_OBJ)
+	$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ) $(PING_OBJ) $(UDP_SEND_OBJ) $(NSLOOKUP_OBJ)
 	$(CC) $(CFLAGS) -Wl,-T$(KERNEL_SRC_DIR)/kernel.ld -Wl,-Map=$(MAP_DIR)/kernel.map -o $@ \
 		$(LIB_SRC_DIR)/commonlibs.c \
 		$(KERNEL_SRC_DIR)/kernel.c \
@@ -292,7 +322,7 @@ $(KERNEL_ELF): $(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 		$(KERNEL_SRC_DIR)/platform/*.c \
 			$(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 			$(MKDIR_OBJ) $(RMDIR_OBJ) $(TOUCH_OBJ) $(RM_OBJ) $(WRITE_OBJ) $(CAT_OBJ) \
-			$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ) $(PING_OBJ)
+			$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ) $(PING_OBJ) $(UDP_SEND_OBJ) $(NSLOOKUP_OBJ)
 
 disk: dirs
 	@if [ ! -f "$(DISK_IMG)" ]; then \
@@ -450,7 +480,9 @@ clean:
 		$(KILL_ELF) $(KILL_BIN) $(KILL_OBJ) \
 		$(KERNEL_INFO_ELF) $(KERNEL_INFO_BIN) $(KERNEL_INFO_OBJ) \
 		$(BITMAP_ELF) $(BITMAP_BIN) $(BITMAP_OBJ) \
-		$(PING_ELF) $(PING_BIN) $(PING_OBJ)
+		$(PING_ELF) $(PING_BIN) $(PING_OBJ) \
+		$(UDP_SEND_ELF) $(UDP_SEND_BIN) $(UDP_SEND_OBJ) \
+		$(NSLOOKUP_ELF) $(NSLOOKUP_BIN) $(NSLOOKUP_OBJ)
 	rm -f $(MAP_DIR)/*.map
 
 distclean: clean

@@ -1,12 +1,12 @@
 #include "net/net.h"
 #include "net/packet.h"
 #include "net/arp.h"
+#include "net/protocol.h"
 #include "core/commonlibs.h"
 
 #define NET_PING_FRAME_CAP  1514u
 #define NET_PING_PAYLOAD    "aquacore-ping"
 #define NET_PING_RX_POLL_LIMIT  3000000u
-#define NET_DEV_PING_MAGIC  0x50494e47u  // "PING"
 
 static uint16_t read_be16(const uint8_t *p) {
     return (uint16_t) (((uint16_t) p[0] << 8) | (uint16_t) p[1]);
@@ -136,54 +136,4 @@ int net_ping_send_once(uint32_t dst_ip, uint16_t id, uint16_t seq) {
     }
 
     return NET_ERR_PING_TIMEOUT;
-}
-
-int net_dev_read(void *buf, size_t size) {
-    if (!buf) {
-        return NET_ERR_INVAL;
-    }
-    if (size == 0u) {
-        return 0;
-    }
-
-    const uint8_t *frame = NULL;
-    size_t frame_len = 0;
-    int ret = net_rx_try_dequeue(&frame, &frame_len);
-    if (ret < 0) {
-        return ret;
-    }
-
-    size_t copy_len = (frame_len < size) ? frame_len : size;
-    memcpy(buf, frame, copy_len);
-    return (int) copy_len;
-}
-
-int net_dev_write(const void *buf, size_t size) {
-    if (!buf) {
-        return NET_ERR_INVAL;
-    }
-    if (size == 0u) {
-        return 0;
-    }
-
-    // Generic netdev command envelope (current op: ping request).
-    // Layout: [magic:"PING"(32), dst_ip(32), id(16), seq(16)].
-    if (size == 12u) {
-        const uint8_t *p = (const uint8_t *) buf;
-        uint32_t magic = ((uint32_t) p[0] << 24)
-                       | ((uint32_t) p[1] << 16)
-                       | ((uint32_t) p[2] << 8)
-                       | (uint32_t) p[3];
-        if (magic == NET_DEV_PING_MAGIC) {
-            uint32_t dst_ip = ((uint32_t) p[4] << 24)
-                            | ((uint32_t) p[5] << 16)
-                            | ((uint32_t) p[6] << 8)
-                            | (uint32_t) p[7];
-            uint16_t id = (uint16_t) (((uint16_t) p[8] << 8) | (uint16_t) p[9]);
-            uint16_t seq = (uint16_t) (((uint16_t) p[10] << 8) | (uint16_t) p[11]);
-            return net_ping_send_once(dst_ip, id, seq);
-        }
-    }
-
-    return net_tx_frame(buf, size);
 }

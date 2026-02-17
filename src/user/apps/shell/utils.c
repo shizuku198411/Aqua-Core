@@ -457,6 +457,12 @@ static int app_map(const char *name) {
     else if (strcmp(name, APP_NAME_PING) == 0) {
         return APP_ID_PING;
     }
+    else if (strcmp(name, APP_NAME_UDP_SEND) == 0) {
+        return APP_ID_UDP_SEND;
+    }
+    else if (strcmp(name, APP_NAME_NSLOOKUP) == 0) {
+        return APP_ID_NSLOOKUP;
+    }
     else {
         return -1;
     }

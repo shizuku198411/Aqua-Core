@@ -24,6 +24,8 @@ extern char _binary___bin_kill_bin_start[], _binary___bin_kill_bin_size[];      
 extern char _binary___bin_kernel_info_bin_start[], _binary___bin_kernel_info_bin_size[]; // kernel_info
 extern char _binary___bin_bitmap_bin_start[], _binary___bin_bitmap_bin_size[];      // bitmap
 extern char _binary___bin_ping_bin_start[], _binary___bin_ping_bin_size[];          // ping
+extern char _binary___bin_udp_send_bin_start[], _binary___bin_udp_send_bin_size[];  // udp_send
+extern char _binary___bin_nslookup_bin_start[], _binary___bin_nslookup_bin_size[];  // nslookup
 
 static int resolve_app_image(int app_id, const void **image_out, size_t *size_out, const char **name_out) {
     if (!image_out || !size_out || !name_out) {
@@ -105,6 +107,16 @@ static int resolve_app_image(int app_id, const void **image_out, size_t *size_ou
             *image_out = _binary___bin_ping_bin_start;
             *size_out = (size_t) _binary___bin_ping_bin_size;
             *name_out = APP_NAME_PING;
+            return 0;
+        case APP_ID_UDP_SEND:
+            *image_out = _binary___bin_udp_send_bin_start;
+            *size_out = (size_t) _binary___bin_udp_send_bin_size;
+            *name_out = APP_NAME_UDP_SEND;
+            return 0;
+        case APP_ID_NSLOOKUP:
+            *image_out = _binary___bin_nslookup_bin_start;
+            *size_out = (size_t) _binary___bin_nslookup_bin_size;
+            *name_out = APP_NAME_NSLOOKUP;
             return 0;
         default:
             return -1;
