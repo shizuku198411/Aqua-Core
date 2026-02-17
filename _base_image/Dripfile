@@ -1,0 +1,5 @@
+FROM ubuntu:24.04
+
+RUN apt update && apt install -y clang llvm lld qemu-system-riscv32 make iproute2 iptables
+
+CMD ["/bin/bash"]
