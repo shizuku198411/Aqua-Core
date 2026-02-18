@@ -1,6 +1,5 @@
 #include "syscall_internal.h"
 #include "user/syscall.h"
-#include "user/apps.h"
 #include "proc/process.h"
 #include "kernel/kernel.h"
 #include "core/commonlibs.h"
@@ -11,123 +10,8 @@
 extern struct process *current_proc;
 extern struct process *init_proc;
 
-// apps address
-extern char _binary___bin_shell_bin_start[], _binary___bin_shell_bin_size[];        // shell
-extern char _binary___bin_ipc_rx_bin_start[], _binary___bin_ipc_rx_bin_size[];      // ipc_rx
-extern char _binary___bin_ps_bin_start[], _binary___bin_ps_bin_size[];              // ps
-extern char _binary___bin_date_bin_start[], _binary___bin_date_bin_size[];          // date
-extern char _binary___bin_ls_bin_start[], _binary___bin_ls_bin_size[];              // ls
-extern char _binary___bin_mkdir_bin_start[], _binary___bin_mkdir_bin_size[];        // mkdir
-extern char _binary___bin_rmdir_bin_start[], _binary___bin_rmdir_bin_size[];        // rmdir
-extern char _binary___bin_touch_bin_start[], _binary___bin_touch_bin_size[];        // touch
-extern char _binary___bin_rm_bin_start[], _binary___bin_rm_bin_size[];              // rm
-extern char _binary___bin_write_bin_start[], _binary___bin_write_bin_size[];        // write
-extern char _binary___bin_cat_bin_start[], _binary___bin_cat_bin_size[];            // cat
-extern char _binary___bin_kill_bin_start[], _binary___bin_kill_bin_size[];          // kill
-extern char _binary___bin_kernel_info_bin_start[], _binary___bin_kernel_info_bin_size[]; // kernel_info
-extern char _binary___bin_bitmap_bin_start[], _binary___bin_bitmap_bin_size[];      // bitmap
-extern char _binary___bin_ping_bin_start[], _binary___bin_ping_bin_size[];          // ping
-extern char _binary___bin_udp_send_bin_start[], _binary___bin_udp_send_bin_size[];  // udp_send
-extern char _binary___bin_nslookup_bin_start[], _binary___bin_nslookup_bin_size[];  // nslookup
-
 #define EXEC_PATH_MAX       FS_PATH_MAX
 #define EXEC_IMAGE_MAX_SIZE (128 * 1024)
-
-static int resolve_app_image(int app_id, const void **image_out, size_t *size_out, const char **name_out) {
-    if (!image_out || !size_out || !name_out) {
-        return -1;
-    }
-
-    switch (app_id) {
-        case APP_ID_SHELL:
-            *image_out = _binary___bin_shell_bin_start;
-            *size_out = (size_t) _binary___bin_shell_bin_size;
-            *name_out = APP_NAME_SHELL;
-            return 0;
-        case APP_ID_IPC_RX:
-            *image_out = _binary___bin_ipc_rx_bin_start;
-            *size_out = (size_t) _binary___bin_ipc_rx_bin_size;
-            *name_out = APP_NAME_IPC_RX;
-            return 0;
-        case APP_ID_PS:
-            *image_out = _binary___bin_ps_bin_start;
-            *size_out = (size_t) _binary___bin_ps_bin_size;
-            *name_out = APP_NAME_PS;
-            return 0;
-        case APP_ID_DATE:
-            *image_out = _binary___bin_date_bin_start;
-            *size_out = (size_t) _binary___bin_date_bin_size;
-            *name_out = APP_NAME_DATE;
-            return 0;
-        case APP_ID_LS:
-            *image_out = _binary___bin_ls_bin_start;
-            *size_out = (size_t) _binary___bin_ls_bin_size;
-            *name_out = APP_NAME_LS;
-            return 0;
-        case APP_ID_MKDIR:
-            *image_out = _binary___bin_mkdir_bin_start;
-            *size_out = (size_t) _binary___bin_mkdir_bin_size;
-            *name_out = APP_NAME_MKDIR;
-            return 0;
-        case APP_ID_RMDIR:
-            *image_out = _binary___bin_rmdir_bin_start;
-            *size_out = (size_t) _binary___bin_rmdir_bin_size;
-            *name_out = APP_NAME_RMDIR;
-            return 0;
-        case APP_ID_TOUCH:
-            *image_out = _binary___bin_touch_bin_start;
-            *size_out = (size_t) _binary___bin_touch_bin_size;
-            *name_out = APP_NAME_TOUCH;
-            return 0;
-        case APP_ID_RM:
-            *image_out = _binary___bin_rm_bin_start;
-            *size_out = (size_t) _binary___bin_rm_bin_size;
-            *name_out = APP_NAME_RM;
-            return 0;
-        case APP_ID_WRITE:
-            *image_out = _binary___bin_write_bin_start;
-            *size_out = (size_t) _binary___bin_write_bin_size;
-            *name_out = APP_NAME_WRITE;
-            return 0;
-        case APP_ID_CAT:
-            *image_out = _binary___bin_cat_bin_start;
-            *size_out = (size_t) _binary___bin_cat_bin_size;
-            *name_out = APP_NAME_CAT;
-            return 0;
-        case APP_ID_KILL:
-            *image_out = _binary___bin_kill_bin_start;
-            *size_out = (size_t) _binary___bin_kill_bin_size;
-            *name_out = APP_NAME_KILL;
-            return 0;
-        case APP_ID_KERNEL_INFO:
-            *image_out = _binary___bin_kernel_info_bin_start;
-            *size_out = (size_t) _binary___bin_kernel_info_bin_size;
-            *name_out = APP_NAME_KERNEL_INFO;
-            return 0;
-        case APP_ID_BITMAP:
-            *image_out = _binary___bin_bitmap_bin_start;
-            *size_out = (size_t) _binary___bin_bitmap_bin_size;
-            *name_out = APP_NAME_BITMAP;
-            return 0;
-        case APP_ID_PING:
-            *image_out = _binary___bin_ping_bin_start;
-            *size_out = (size_t) _binary___bin_ping_bin_size;
-            *name_out = APP_NAME_PING;
-            return 0;
-        case APP_ID_UDP_SEND:
-            *image_out = _binary___bin_udp_send_bin_start;
-            *size_out = (size_t) _binary___bin_udp_send_bin_size;
-            *name_out = APP_NAME_UDP_SEND;
-            return 0;
-        case APP_ID_NSLOOKUP:
-            *image_out = _binary___bin_nslookup_bin_start;
-            *size_out = (size_t) _binary___bin_nslookup_bin_size;
-            *name_out = APP_NAME_NSLOOKUP;
-            return 0;
-        default:
-            return -1;
-    }
-}
 
 static int basename_from_path(const char *path, char out_name[PROC_NAME_MAX]) {
     if (!path || !out_name || path[0] == '\0') {
@@ -303,26 +187,6 @@ void syscall_handle_ps(struct trap_frame *f) {
     f->a0 = 0;
 }
 
-void syscall_handle_clone(struct trap_frame *f) {
-    const void *image = NULL;
-    size_t image_size = 0;
-    const char *name = NULL;
-    if (resolve_app_image((int) f->a0, &image, &image_size, &name) < 0) {
-        f->a0 = -1;
-        return;
-    }
-    (void) image;
-    (void) image_size;
-
-    struct process *proc = create_process(image, image_size, name);
-    if (proc == NULL) {
-        f->a0 = -1;
-        return;
-    }
-    proc->parent_pid = current_proc ? current_proc->pid : 0;
-    f->a0 = proc->pid;
-}
-
 void syscall_handle_waitpid(struct trap_frame *f) {
     int target_pid = (int) f->a0;
     int *status_ptr = (int *) f->a1;
@@ -360,22 +224,6 @@ void syscall_handle_fork(struct trap_frame *f) {
     f->a0 = child_pid;
 }
 
-void syscall_handle_exec(struct trap_frame *f) {
-    const void *image = NULL;
-    size_t image_size = 0;
-    const char *name = NULL;
-    if (resolve_app_image((int) f->a0, &image, &image_size, &name) < 0) {
-        f->a0 = -1;
-        return;
-    }
-
-    char path[EXEC_PATH_MAX];
-    strcpy_s(path, sizeof(path), "/bin/");
-    strcat_s(path, sizeof(path), name);
-    int ret = exec_from_path(path, 0, NULL);
-    f->a0 = (ret < 0) ? -1 : 0;
-}
-
 static int copy_user_argv_safe(const char *const *uargv,
                                int *argc_out,
                                char out_argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN]) {
@@ -409,32 +257,6 @@ static int copy_user_argv_safe(const char *const *uargv,
 
     *argc_out = PROC_EXEC_ARGV_MAX;
     return 0;
-}
-
-void syscall_handle_execv(struct trap_frame *f) {
-    const void *image = NULL;
-    size_t image_size = 0;
-    const char *name = NULL;
-
-    if (resolve_app_image((int)f->a0, &image, &image_size, &name) < 0) {
-        f->a0 = -1;
-        return;
-    }
-    (void) image;
-    (void) image_size;
-
-    int argc = 0;
-    char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN];
-    if (copy_user_argv_safe((const char *const *)f->a1, &argc, argv) < 0) {
-        f->a0 = -1;
-        return;
-    }
-
-    char path[EXEC_PATH_MAX];
-    strcpy_s(path, sizeof(path), "/bin/");
-    strcat_s(path, sizeof(path), name);
-    int ret = exec_from_path(path, argc, argv);
-    f->a0 = (ret < 0) ? -1 : 0;
 }
 
 void syscall_handle_exec_path(struct trap_frame *f) {

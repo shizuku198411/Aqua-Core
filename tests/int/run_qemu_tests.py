@@ -150,6 +150,7 @@ def run_tests(h: Harness):
     run_cmd_case("udp_send_app", "udp_send 999.1.1.1 1 1 x", [b"invalid ipv4"])
     run_cmd_case("nslookup_app", "nslookup", [b"usage: nslookup <name> [dns-server-ipv4]"])
     run_cmd_case("exit_status_nonzero", "date --fail", [b"date: forced failure", b"exit status: 42"])
+    run_cmd_case("echo_app", "echo hello", [b"hello"])
 
     def case_kernel_info():
         # Validate that exported kernel parameters are present and populated.
