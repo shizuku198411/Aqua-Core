@@ -16,6 +16,7 @@ struct process procs[PROCS_MAX];
 struct process *current_proc;
 struct process *idle_proc;
 struct process *init_proc;
+int next_pid = 0;
 
 static bool need_resched;
 static uint64_t scheduler_tick_count;
@@ -237,6 +238,34 @@ static void reap_exited_processes(void) {
 }
 
 
+static int alloc_pid(void) {
+    // idle process, return 0
+    if (next_pid == 0) {
+        return next_pid++;
+    }
+    int i;
+    for (i = 0; i < PROC_PID_MAX; i++) {
+        if (next_pid > PROC_PID_MAX) {
+            next_pid = 2;   // pid 0/1 is pre-reserved for idle/init process.
+        }
+        bool pid_used = false;
+        for (int j = 0; j < PROCS_MAX; j++) {
+            if (procs[j].pid == next_pid) {
+                pid_used = true;
+            }
+        }
+        if (pid_used) {
+            next_pid++;
+            continue;
+        }
+        break;
+    }
+    if (i == PROC_PID_MAX) {
+        return -1;
+    }
+    return next_pid++;
+}
+
 __attribute__((naked))
 void switch_context(uint32_t *prev_sp, uint32_t *next_sp) {
     __asm__ __volatile__(
@@ -360,7 +389,14 @@ struct process *create_process(const void *image, size_t image_size, const char 
         return NULL;
     }
 
-    proc->pid = i;
+    // allocate pid
+    int pid = alloc_pid();
+    if (pid < 0) {
+        recycle_process_slot(proc);
+        return NULL;
+    }
+
+    proc->pid = pid;    
     fs_init_process_stdio(proc->pid);
     proc->state = PROC_RUNNABLE;
     set_process_name(proc, name);
@@ -451,7 +487,12 @@ struct process *alloc_proc_slot() {
     }
 
     // initialize process
-    proc->pid = i;
+    // allocate pid
+    int pid = alloc_pid();
+    if (pid < 0) {
+        return NULL;
+    }
+    proc->pid = pid;
     proc->state = PROC_UNUSED;
     proc->wait_reason = PROC_WAIT_NONE;
     proc->wait_pid = -1;
