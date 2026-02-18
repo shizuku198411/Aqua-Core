@@ -3,7 +3,6 @@
 #include "core/commonlibs.h"
 #include "proc/process.h"
 #include "user_syscall.h"
-#include "user/apps.h"
 #include "fs/fs.h"
 
 static int shell_output_fd = -1;
@@ -411,63 +410,6 @@ bool is_background(char **argv, int argc) {
     return false;
 }
 
-static int app_map(const char *name) {
-    if (strcmp(name, APP_NAME_SHELL) == 0) {
-        return APP_ID_SHELL;
-    }
-    else if (strcmp(name, APP_NAME_IPC_RX) == 0) {
-        return APP_ID_IPC_RX;
-    }
-    else if (strcmp(name, APP_NAME_PS) == 0) {
-        return APP_ID_PS;
-    }
-    else if (strcmp(name, APP_NAME_DATE) == 0) {
-        return APP_ID_DATE;
-    }
-    else if (strcmp(name, APP_NAME_LS) == 0) {
-        return APP_ID_LS;
-    }
-    else if (strcmp(name, APP_NAME_MKDIR) == 0) {
-        return APP_ID_MKDIR;
-    }
-    else if (strcmp(name, APP_NAME_RMDIR) == 0) {
-        return APP_ID_RMDIR;
-    }
-    else if (strcmp(name, APP_NAME_TOUCH) == 0) {
-        return APP_ID_TOUCH;
-    }
-    else if (strcmp(name, APP_NAME_RM) == 0) {
-        return APP_ID_RM;
-    }
-    else if (strcmp(name, APP_NAME_WRITE) == 0) {
-        return APP_ID_WRITE;
-    }
-    else if (strcmp(name, APP_NAME_CAT) == 0) {
-        return APP_ID_CAT;
-    }
-    else if (strcmp(name, APP_NAME_KILL) == 0) {
-        return APP_ID_KILL;
-    }
-    else if (strcmp(name, APP_NAME_KERNEL_INFO) == 0) {
-        return APP_ID_KERNEL_INFO;
-    }
-    else if (strcmp(name, APP_NAME_BITMAP) == 0) {
-        return APP_ID_BITMAP;
-    }
-    else if (strcmp(name, APP_NAME_PING) == 0) {
-        return APP_ID_PING;
-    }
-    else if (strcmp(name, APP_NAME_UDP_SEND) == 0) {
-        return APP_ID_UDP_SEND;
-    }
-    else if (strcmp(name, APP_NAME_NSLOOKUP) == 0) {
-        return APP_ID_NSLOOKUP;
-    }
-    else {
-        return -1;
-    }
-}
-
 int run_external(char **argv, int argc, bool background) {
     if (!argv || argc <= 0) {
         return -1;
@@ -487,10 +429,27 @@ int run_external(char **argv, int argc, bool background) {
     }
     exec_argv[exec_argc] = NULL;
 
-    int app_id = app_map(argv[0]);
-    if (app_id < 0) {
-        printf("command not found\n");
-        return -1;
+    int is_path_cmd = 0;
+    for (int i = 0; argv[0][i] != '\0'; i++) {
+        if (argv[0][i] == '/') {
+            is_path_cmd = 1;
+            break;
+        }
+    }
+
+    char exec_path[FS_PATH_MAX];
+    if (!is_path_cmd) {
+        // path-less command is resolved through /bin/<cmd>.
+        strcpy_s(exec_path, sizeof(exec_path), "/bin/");
+        strcat_s(exec_path, sizeof(exec_path), argv[0]);
+        int fd = fs_open(exec_path, O_RDONLY);
+        if (fd < 0) {
+            printf("command not found\n");
+            return -1;
+        }
+        (void) fs_close(fd);
+    } else {
+        strcpy_s(exec_path, sizeof(exec_path), argv[0]);
     }
 
     int pid = fork();
@@ -501,7 +460,7 @@ int run_external(char **argv, int argc, bool background) {
 
     // child
     if (pid == 0) {
-        int ret = execv(app_id, exec_argv);
+        int ret = execv_path(exec_path, exec_argv);
         if (ret < 0) {
             printf("exec failed\n");
             exit(127);

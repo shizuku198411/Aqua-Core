@@ -64,8 +64,8 @@ int main(int argc, char **argv) {
             }
         }
     } else {
-        int i = 0;
-        for (;; i++) {
+        int printed = 0;
+        for (int i = 0;; i++) {
             if (fs_readdir(path, i, &ent) < 0) {
                 break;
             }
@@ -77,11 +77,12 @@ int main(int argc, char **argv) {
             } else {
                 printf("%s\t", ent.name);
             }
-            if ((i != 0) && (i % 10 == 0)) {
+            printed++;
+            if ((printed % 10) == 0) {
                 printf("\n");
             }
         }
-        if (i < 10) {
+        if ((printed % 10) != 0 || printed == 0) {
             printf("\n");
         }
     }

@@ -26,6 +26,8 @@
   - `>` / `<` のパース、`fd0/fd1` ベースの標準入出力、`dup2` 連携
 - [VFS / RAMFS / VirtIO Block Storage](./vfs.md)
   - / と /tmp の共存、永続化PFS、virtio-blk、障害原因と対策
+- [AppFS User App Deployment And Exec Flow](./appfs-exec-flow.md)
+  - `/bin` 配置、`pack_appfs.py`、`exec_path` の実行フロー
 - [Procfs (`/proc` on RAMFS)](./procfs.md)
   - `/proc/<pid>/status` の生成/同期/cleanup、状態遷移の観測、既知制約と次段階
 - [Kernel Operation Walkthrough](./kernel-operation-walkthrough.md)

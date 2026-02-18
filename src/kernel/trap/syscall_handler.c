@@ -121,6 +121,14 @@ void handle_syscall(struct trap_frame *f) {
             syscall_handle_sleep(f);
             break;
 
+        case SYSCALL_EXEC_PATH:
+            syscall_handle_exec_path(f);
+            break;
+
+        case SYSCALL_EXECV_PATH:
+            syscall_handle_execv_path(f);
+            break;
+
         default:
             PANIC("undefined system call");
     }

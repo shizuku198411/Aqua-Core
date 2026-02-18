@@ -134,6 +134,14 @@ int execv(int app_id, const char **argv) {
     return syscall(SYSCALL_EXECV, app_id, (int) argv, 0);
 }
 
+int exec_path(const char *path) {
+    return syscall(SYSCALL_EXEC_PATH, (int) path, 0, 0);
+}
+
+int execv_path(const char *path, const char **argv) {
+    return syscall(SYSCALL_EXECV_PATH, (int) path, (int) argv, 0);
+}
+
 int dup2(int old_fd, int new_fd) {
     return syscall(SYSCALL_DUP2, old_fd, new_fd, 0);
 }

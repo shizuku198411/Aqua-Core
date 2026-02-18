@@ -30,6 +30,8 @@ int sleep(uint32_t ms);
 int fork(void);
 int exec(int app_id);
 int execv(int app_id, const char **argv);
+int exec_path(const char *path);
+int execv_path(const char *path, const char **argv);
 int dup2(int old_fd, int new_fd);
 int getargs(struct exec_args *out);
 int getcwd(char *cwd_path);

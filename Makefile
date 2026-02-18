@@ -369,6 +369,9 @@ disk: dirs
 	@if [ ! -f "$(DISK_IMG)" ]; then \
 		truncate -s $(DISK_SIZE) "$(DISK_IMG)"; \
 	fi
+	@if [ -f "$(SHELL_BIN)" ]; then \
+		python3 scripts/pack_appfs.py --disk "$(DISK_IMG)" --bin-dir "$(BIN_DIR)"; \
+	fi
 
 run: $(KERNEL_ELF) disk
 	$(QEMU) $(QEMU_OPT) \

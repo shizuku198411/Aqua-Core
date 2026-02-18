@@ -134,6 +134,7 @@ def run_tests(h: Harness):
 
     # shell itself is validated by interactive prompt availability.
     run_cmd_case("date_app", "date", [b"UTC"])
+    run_cmd_case("date_path_app", "/bin/date", [b"UTC"])
     run_cmd_case("ls_app", "ls /", [b"tmp/", b"proc/"])
     run_cmd_case("mkdir_app", "mkdir /tmp/itest_dir", [])
     run_cmd_case("touch_app", "touch /tmp/itest_dir/file1", [])
