@@ -125,68 +125,25 @@ static int resolve_app_image(int app_id, const void **image_out, size_t *size_ou
 }
 
 
-static int copy_user_argv(const char *const *uargv,
-                          int *argc_out,
-                          char out_argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN]) {
-    if (!argc_out || !out_argv) {
+static int write_user_ps_info(struct ps_info *user_ptr, const struct process *proc) {
+    if (!user_ptr || !proc) {
         return -1;
     }
 
-    *argc_out = 0;
-    for (int i = 0; i < PROC_EXEC_ARGV_MAX; i++) {
-        for (int j = 0; j < PROC_EXEC_ARG_LEN; j++) {
-            out_argv[i][j] = '\0';
-        }
+    struct ps_info kbuf;
+    memset(&kbuf, 0, sizeof(struct ps_info));
+    kbuf.pid = proc->pid;
+    kbuf.parent_pid = proc->parent_pid;
+    kbuf.state = proc->state;
+    kbuf.wait_reason = proc->wait_reason;
+    strcpy_s(kbuf.name, PROC_NAME_MAX, proc->name);
+    kbuf.argc = proc->exec_argc;
+    memcpy(&kbuf.argv, proc->exec_argv, PROC_EXEC_ARG_LEN * PROC_EXEC_ARGV_MAX);
+
+    if (copyout(user_ptr, &kbuf, sizeof(kbuf)) < 0) {
+        return -1;
     }
-
-    if (!uargv) {
-        return 0;
-    }
-
-    int argc = 0;
-    for (; argc < PROC_EXEC_ARGV_MAX; argc++) {
-        const char *p = uargv[argc];
-        if (!p) {
-            break;
-        }
-
-        for (int j = 0; j < PROC_EXEC_ARG_LEN - 1; j++) {
-            char c = p[j];
-            out_argv[argc][j] = c;
-            if (c == '\0') {
-                break;
-            }
-        }
-        out_argv[argc][PROC_EXEC_ARG_LEN - 1] = '\0';
-    }
-
-    *argc_out = argc;
     return 0;
-}
-
-
-static void write_user_ps_info(struct ps_info *user_ptr, const struct process *proc) {
-    if (!user_ptr || !proc) {
-        return;
-    }
-
-    uint32_t sstatus = sum_enter();
-
-    user_ptr->pid = proc->pid;
-    user_ptr->parent_pid = proc->parent_pid;
-    user_ptr->state = proc->state;
-    user_ptr->wait_reason = proc->wait_reason;
-    for (int i = 0; i < PROC_NAME_MAX; i++) {
-        user_ptr->name[i] = proc->name[i];
-    }
-    user_ptr->argc = proc->exec_argc;
-    for (int i = 0; i < PROC_EXEC_ARGV_MAX; i++) {
-        for (int j = 0; j < PROC_EXEC_ARG_LEN; j++) {
-            user_ptr->argv[i][j] = proc->exec_argv[i][j];
-        }
-    }
-
-    sum_leave(sstatus);
 }
 
 void syscall_handle_exit(struct trap_frame *f) {
@@ -223,7 +180,10 @@ void syscall_handle_ps(struct trap_frame *f) {
     }
 
     struct process *proc = &procs[index];
-    write_user_ps_info(info_ptr, proc);
+    if (write_user_ps_info(info_ptr, proc) < 0) {
+        f->a0 = -1;
+        return;
+    }
     f->a0 = 0;
 }
 
@@ -286,27 +246,58 @@ void syscall_handle_exec(struct trap_frame *f) {
     f->a0 = (ret < 0) ? -1 : 0;
 }
 
+static int copy_user_argv_safe(const char *const *uargv,
+                               int *argc_out,
+                               char out_argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN]) {
+    if (!argc_out || !out_argv) return -1;
+
+    *argc_out = 0;
+    for (int i = 0; i < PROC_EXEC_ARGV_MAX; i++) {
+        for (int j = 0; j < PROC_EXEC_ARG_LEN; j++) {
+            out_argv[i][j] = '\0';
+        }
+    }
+
+    if (!uargv) return 0; //
+
+    for (int i = 0; i < PROC_EXEC_ARGV_MAX; i++) {
+        const char *uptr = NULL;
+
+        if (copyin(&uptr, (const uint8_t *)uargv + i * sizeof(uptr), sizeof(uptr)) < 0) {
+            return -1;
+        }
+
+        if (!uptr) {
+            *argc_out = i;
+            return 0;
+        }
+
+        if (copyinstr(out_argv[i], uptr, PROC_EXEC_ARG_LEN) < 0) {
+            return -1;
+        }
+    }
+
+    *argc_out = PROC_EXEC_ARGV_MAX;
+    return 0;
+}
+
 void syscall_handle_execv(struct trap_frame *f) {
     const void *image = NULL;
     size_t image_size = 0;
     const char *name = NULL;
-    if (resolve_app_image((int) f->a0, &image, &image_size, &name) < 0) {
+
+    if (resolve_app_image((int)f->a0, &image, &image_size, &name) < 0) {
         f->a0 = -1;
         return;
     }
 
     int argc = 0;
     char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN];
-
-    uint32_t sstatus = sum_enter();
-    int cret = copy_user_argv((const char *const *) f->a1, &argc, argv);
-    sum_leave(sstatus);
-
-    if (cret < 0) {
+    if (copy_user_argv_safe((const char *const *)f->a1, &argc, argv) < 0) {
         f->a0 = -1;
         return;
     }
-    
+
     int ret = process_exec(image, image_size, name, argc, argv);
     f->a0 = (ret < 0) ? -1 : 0;
 }
@@ -318,14 +309,18 @@ void syscall_handle_getargs(struct trap_frame *f) {
         return;
     }
 
-    uint32_t sstatus = sum_enter();
-    out->argc = current_proc->exec_argc;
+    if (copyout(&out->argc, &current_proc->exec_argc, sizeof(out->argc)) < 0) {
+        f->a0 = -1;
+        return;
+    }
     for (int i = 0; i < PROC_EXEC_ARGV_MAX; i++) {
         for (int j = 0; j < PROC_EXEC_ARG_LEN; j++) {
-            out->argv[i][j] = current_proc->exec_argv[i][j];
+            if (copyout(&out->argv[i][j], &current_proc->exec_argv[i][j], sizeof(out->argv[i][j])) < 0) {
+                f->a0 = -1;
+                return;
+            }
         }
     }
-    sum_leave(sstatus);
 
     f->a0 = 0;
 }

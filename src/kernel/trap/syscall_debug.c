@@ -17,9 +17,10 @@ void syscall_handle_kernel_info(struct trap_frame *f) {
     struct kernel_info info;
     kernel_get_info(&info);
 
-    uint32_t sstatus = sum_enter();
-    *user_info = info;
-    sum_leave(sstatus);
+    if (copyout(user_info, &info, sizeof(struct kernel_info)) < 0) {
+        f->a0 = -1;
+        return;
+    }
 
     f->a0 = 0;
 }

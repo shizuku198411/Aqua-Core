@@ -5,10 +5,11 @@
 
 extern struct process *current_proc;
 
-static void write_user_int(int *user_ptr, int value) {
-    uint32_t sstatus = sum_enter();
-    *user_ptr = value;
-    sum_leave(sstatus);
+static int write_user_int(int *user_ptr, int value) {
+    if (copyout(user_ptr, &value, sizeof(value)) < 0) {
+        return -1;
+    }
+    return 0;
 }
 
 void syscall_handle_ipc_send(struct trap_frame *f) {
@@ -40,7 +41,10 @@ void syscall_handle_ipc_recv(struct trap_frame *f) {
     }
 
     if (from_pid_ptr) {
-        write_user_int(from_pid_ptr, from_pid);
+        if (write_user_int(from_pid_ptr, from_pid) < 0) {
+            f->a0 = -1;
+            return;
+        }
     }
 
     f->a0 = (int) message;
