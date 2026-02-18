@@ -13,6 +13,7 @@ USER_APPS_DIR := $(USER_SRC_DIR)/apps
 CC := clang
 OBJCOPY := llvm-objcopy
 QEMU := qemu-system-riscv32
+HOST_CC ?= cc
 
 CPPFLAGS ?=
 CFLAGS := ${CPPFLAGS} -std=c11 -O2 -g3 -Wall -Wextra --target=riscv32-unknown-elf -fuse-ld=lld -fno-stack-protector -ffreestanding -nostdlib -Isrc/include -Isrc/user/include
@@ -101,12 +102,52 @@ UDP_SEND_OBJ := $(OBJ_DIR)/udp_send.bin.o
 NSLOOKUP_ELF := $(BIN_DIR)/nslookup.elf
 NSLOOKUP_BIN := $(BIN_DIR)/nslookup.bin
 NSLOOKUP_OBJ := $(OBJ_DIR)/nslookup.bin.o
+TEST_BIN_DIR := $(BIN_DIR)/tests
+UNIT_TEST_BIN := $(TEST_BIN_DIR)/unit/test_commonlibs
+UNIT_TEST_USER_PATH_BIN := $(TEST_BIN_DIR)/unit/test_user_path
+UNIT_COMMONLIB_RENAME_FLAGS := \
+	-Dputchar=ac_putchar -Dgetchar=ac_getchar -Dexit=ac_exit -Dprintf=ac_printf \
+	-Dmemcpy=ac_memcpy -Dmemset=ac_memset -Dstrcpy=ac_strcpy -Dstrcpy_s=ac_strcpy_s \
+	-Dstrcat=ac_strcat -Dstrcat_s=ac_strcat_s -Dstrcmp=ac_strcmp \
+	-Dunix_time_to_utc_str=ac_unix_time_to_utc_str
 
-.PHONY: all build run start debug release run-debug run-release start-debug start-release qemu-debug run-usernet start-usernet qemu-debug-usernet run-tap start-tap qemu-debug-tap run-tap-dump tap-up tap-down tap-status nat-up nat-down nat-status clean distclean dirs disk
+.PHONY: all build test test-unit test-int run start debug release run-debug run-release start-debug start-release qemu-debug run-usernet start-usernet qemu-debug-usernet run-tap start-tap qemu-debug-tap run-tap-dump tap-up tap-down tap-status nat-up nat-down nat-status clean distclean dirs disk
 
 all: build
 
 build: $(KERNEL_ELF)
+
+test: test-unit test-int
+
+test-unit:
+	mkdir -p $(TEST_BIN_DIR)/unit
+	$(HOST_CC) -std=c11 -O2 -Wall -Wextra -Isrc/include -Isrc/user/include $(UNIT_COMMONLIB_RENAME_FLAGS) \
+		tests/unit/test_commonlibs.c src/lib/commonlibs.c -o $(UNIT_TEST_BIN)
+	$(HOST_CC) -std=c11 -O2 -Wall -Wextra -Isrc/include -Isrc/user/include $(UNIT_COMMONLIB_RENAME_FLAGS) \
+		tests/unit/test_user_path.c src/user/runtime/user_path.c src/lib/commonlibs.c -o $(UNIT_TEST_USER_PATH_BIN)
+	@set -e; \
+	for tc in "1 memcpy_memset" "2 strcpy_strcat" "3 unix_time_to_utc_str"; do \
+		set -- $$tc; \
+		if $(UNIT_TEST_BIN) $$1; then \
+			echo "[PASS] unit: $$2"; \
+		else \
+			echo "[FAIL] unit: $$2"; \
+			exit 1; \
+		fi; \
+	done
+	@set -e; \
+	for tc in "1 user_path_abs_normalize" "2 user_path_relative_from_cwd"; do \
+		set -- $$tc; \
+		if $(UNIT_TEST_USER_PATH_BIN) $$1; then \
+			echo "[PASS] unit: $$2"; \
+		else \
+			echo "[FAIL] unit: $$2"; \
+			exit 1; \
+		fi; \
+	done
+
+test-int: $(KERNEL_ELF) disk
+	python3 tests/int/run_qemu_tests.py --qemu $(QEMU) --kernel $(KERNEL_ELF) --disk $(DISK_IMG)
 
 debug: clean
 	$(MAKE) build CPPFLAGS=-DDEBUG
@@ -465,6 +506,7 @@ nat-status:
 	$$SUDO_CMD iptables -t nat -S POSTROUTING | sed -n '1,200p'
 
 clean:
+	rm -rf $(TEST_BIN_DIR)
 	rm -f $(KERNEL_ELF) \
 		$(SHELL_ELF) $(SHELL_BIN) $(SHELL_OBJ) \
 		$(IPC_RX_ELF) $(IPC_RX_BIN) $(IPC_RX_OBJ) \

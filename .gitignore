@@ -5,3 +5,4 @@ opensbi-riscv32-generic-fw_dynamic.bin
 map/
 docs/roadmap/
 workspace/
+tests/int/last_failure.log

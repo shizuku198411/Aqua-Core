@@ -12,18 +12,23 @@ QEMU + OpenSBI 環境での動作を前提に実装しています。
 </p>
 
 ## ビルド/起動
-### BIOSダウンロード
-以下リンクよりルート直下にBIOS(OpenSBI)をダウンロード、本リポジトリのルート直下に設置してください。
-```bash
-curl -LO https://github.com/qemu/qemu/raw/v8.0.4/pc-bios/opensbi-riscv32-generic-fw_dynamic.bin
-```
+### 前提
+- `clang` / `lld` / `llvm-objcopy`
+- `qemu-system-riscv32`
+- `python3`（integration test 実行時に使用）
+- Linux で TAP 利用時は `ip` / `iptables` / `sudo`（必要に応じて）
+- OpenSBIバイナリのリポジトリトップへの設置が必要です  
+  ```
+  cd Aqua-Core
+  curl -LO https://github.com/qemu/qemu/raw/v8.0.4/pc-bios/opensbi-riscv32-generic-fw_dynamic.bin
+  ```
 
 ### Makefile
 ```bash
 # build (kernel + user apps)
 make
 
-# run on qemu (create ./bin/disk.img when missing)
+# run on qemu with TAP network (create ./bin/disk.img when missing)
 make run
 ```
 
@@ -32,8 +37,33 @@ make run
 - `make` or `make build` : ビルド
 - `make start`: QEMU起動
 - `make run` : ビルド + QEMU起動
+- `make run-usernet` : ビルド + QEMU起動（QEMU user-mode net）
+- `make run-tap` : ビルド + QEMU起動（TAP net）
+- `make tap-up` / `make tap-down` : TAPデバイス作成/削除
+- `make nat-up` / `make nat-down` : TAP向けNAT有効化/無効化
 - `make clean` : 生成物削除（disk imageは残す）
 - `make distclean` : 生成物 + `./bin/disk.img` 削除
+
+## テスト実行
+
+```bash
+# unit test
+make test-unit
+
+# integration test (QEMU起動)
+make test-int
+
+# unit + integration
+make test
+```
+
+- unit test はケースごとに `[PASS]/[FAIL]` を表示します。
+- integration test もケースごとに `[PASS]/[FAIL]` を表示します。
+- integration 失敗時は `tests/int/last_failure.log` に以下を出力します。
+  - 実行コマンド
+  - エラー内容
+  - ケース履歴（`START/PASS/FAIL`）
+  - QEMU出力末尾
 
 ## 現在の実装機能
 
@@ -44,6 +74,7 @@ make run
 - Trap/割り込み
   - U-mode `ecall` 処理 (syscall)
   - timer 割り込みでの再スケジュール判定
+  - syscall 引数のユーザメモリアクセス安全化（`copyin` / `copyout` / `copyinstr`）
 - 入力処理
   - コンソール入力リングバッファ
   - `getchar` の待機/起床制御（busy loop回避）
@@ -59,6 +90,12 @@ make run
 - IPC
   - プロセスごとの単一 mailbox
   - `ipc_send` / `ipc_recv` による送受信
+- ネットワーク
+  - virtio-net 初期化（MMIO）
+  - ARP 解決
+  - ICMP Echo 送受信（`ping`）
+  - UDP 送信（`udp_send`）
+  - DNS クエリ送信（`nslookup`）
 - ファイルシステム (VFS)
   - `/` : PFS（virtio-blk上の永続ストレージ）
   - `/tmp` : RAMFS（揮発ストレージ）
@@ -77,9 +114,13 @@ make run
   - 左右キーでカーソル移動、途中挿入/削除（Backspace/Delete）
   - Tab 補完（App名）
 - ユーザアプリ
-  - `shell`, `ps`, `date`, `ls`, `mkdir`, `rmdir`, `touch`, `rm`, `write`, `cat`, `kill`, `kernel_info`, `bitmap`
+  - `shell`, `ps`, `date`, `ls`, `mkdir`, `rmdir`, `touch`, `rm`, `write`, `cat`, `kill`, `kernel_info`, `bitmap`, `ping`, `udp_send`, `nslookup`, `ipc_rx`
   - shell 組み込み: `cd`, `history`, `exit`
-  - `ipc_rx`（`receiver`/`sender` モード）
+- テスト基盤
+  - host 実行の unit test（`tests/unit`）
+  - QEMU 実行の integration test（`tests/int`）
+  - 各 user app の最低1回実行を含む自動確認
+  - `kernel_info` 出力の数値妥当性チェック
 - カーネル終了
   - init プロセス終了時の shutdown 処理
 
