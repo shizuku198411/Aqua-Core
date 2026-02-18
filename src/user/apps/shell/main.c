@@ -10,6 +10,15 @@
 #include "fs/fs.h"
 
 #define NUM_BUILTIN_CMD 6
+// shell built-in command
+const char builtin_cmd[NUM_BUILTIN_CMD][FS_NAME_MAX] = {
+    "history",
+    "pwd",
+    "cd",
+    "net_send_raw",
+    "net_recv_raw",
+    "exit"
+};
 
 char shell_app_names[FS_MAX_NODES][FS_NAME_MAX];
 
@@ -76,15 +85,6 @@ static void read_bin_dir(void) {
         }
         strcpy_s(shell_app_names[i], FS_NAME_MAX, ent.name);
     }
-    // shell built-in command
-    const char builtin_cmd[NUM_BUILTIN_CMD][FS_NAME_MAX] = {
-        "history",
-        "pwd",
-        "cd",
-        "net_send_raw",
-        "net_recv_raw",
-        "exit"
-    };
     for (int j = 0; j < NUM_BUILTIN_CMD; j++) {
         strcpy_s(shell_app_names[i], FS_NAME_MAX, builtin_cmd[j]);
         i++;
