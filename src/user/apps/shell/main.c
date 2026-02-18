@@ -7,29 +7,20 @@
 #include "user_syscall.h"
 #include "commands_sys.h"
 #include "user/syscall.h"
-#include "user/apps.h"
 #include "fs/fs.h"
 
-static const char *shell_app_names[] = {
-    APP_NAME_SHELL,
-    APP_NAME_IPC_RX,
-    APP_NAME_PS,
-    APP_NAME_DATE,
-    APP_NAME_LS,
-    APP_NAME_MKDIR,
-    APP_NAME_RMDIR,
-    APP_NAME_TOUCH,
-    APP_NAME_RM,
-    APP_NAME_WRITE,
-    APP_NAME_CAT,
+#define NUM_BUILTIN_CMD 6
+// shell built-in command
+const char builtin_cmd[NUM_BUILTIN_CMD][FS_NAME_MAX] = {
+    "history",
+    "pwd",
     "cd",
-    APP_NAME_KILL,
-    APP_NAME_KERNEL_INFO,
-    APP_NAME_BITMAP,
-    APP_NAME_PING,
-    APP_NAME_UDP_SEND,
-    APP_NAME_NSLOOKUP,
+    "net_send_raw",
+    "net_recv_raw",
+    "exit"
 };
+
+char shell_app_names[FS_MAX_NODES][FS_NAME_MAX];
 
 static int min_int(int a, int b) {
     return (a < b) ? a : b;
@@ -83,10 +74,29 @@ static void replace_first_token(char *cmdline,
     cmdline[*len] = '\0';
 }
 
+static void read_bin_dir(void) {
+    // clear
+    memset(shell_app_names, 0, FS_MAX_NODES * FS_NAME_MAX);
+    struct fs_dirent ent;
+    int i;
+    for (i = 0;; i++) {
+        if (fs_readdir("/bin", i, &ent) < 0) {
+            break;
+        }
+        strcpy_s(shell_app_names[i], FS_NAME_MAX, ent.name);
+    }
+    for (int j = 0; j < NUM_BUILTIN_CMD; j++) {
+        strcpy_s(shell_app_names[i], FS_NAME_MAX, builtin_cmd[j]);
+        i++;
+    }
+}
+
 static int complete_app_name(char *cmdline, int *len, int *cursor) {
     if (!cmdline || !len || !cursor) {
         return 0;
     }
+
+    read_bin_dir();
 
     int token_end = first_token_end(cmdline, *len);
     if (*cursor > token_end || *cursor <= 0) {

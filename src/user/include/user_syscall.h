@@ -8,8 +8,6 @@
 void putchar(char ch);
 long getchar(void);
 int ps(int index, struct ps_info *info);
-int clone(int app_id);
-int spawn(int app_id);
 int waitpid(int pid, int *status, int options);
 int waitpid_opts(int pid, int options);
 int ipc_send(int pid, int message);
@@ -28,8 +26,6 @@ int fs_rmdir(const char *path);
 int gettime(struct time_spec *out);
 int sleep(uint32_t ms);
 int fork(void);
-int exec(int app_id);
-int execv(int app_id, const char **argv);
 int exec_path(const char *path);
 int execv_path(const char *path, const char **argv);
 int dup2(int old_fd, int new_fd);

@@ -38,15 +38,6 @@ int ps(int index, struct ps_info *info) {
     return syscall(SYSCALL_PS, index, (int) info, 0);
 }
 
-
-int clone(int app_id) {
-    return syscall(SYSCALL_CLONE, app_id, 0, 0);
-}
-
-int spawn(int app_id) {
-    return clone(app_id);
-}
-
 int waitpid(int pid, int *status, int options) {
     return syscall(SYSCALL_WAITPID, pid, (int) status, options);
 }
@@ -124,14 +115,6 @@ int sleep(uint32_t ms) {
 
 int fork(void) {
     return syscall(SYSCALL_FORK, 0, 0, 0);
-}
-
-int exec(int app_id) {
-    return syscall(SYSCALL_EXEC, app_id, 0, 0);
-}
-
-int execv(int app_id, const char **argv) {
-    return syscall(SYSCALL_EXECV, app_id, (int) argv, 0);
 }
 
 int exec_path(const char *path) {

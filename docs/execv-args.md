@@ -2,7 +2,7 @@
 
 ## 概要
 
-AquaCore における `execv` は、  
+AquaCore における `execv_path` は、  
 POSIX のように「ユーザスタック上に `argc/argv/envp` を直接構築する方式」ではなく、  
 カーネル内の `process` 構造体へ保持し、ユーザ起動時に `getargs` syscall で取得する方式を採用しています。
 
@@ -14,9 +14,10 @@ POSIX のように「ユーザスタック上に `argc/argv/envp` を直接構�
 shell(run_external)
   -> fork()
     -> child
-      -> execv(app_id, argv)
-        -> ecall (a0=app_id, a1=argv_ptr, a3=SYSCALL_EXECV)
-          -> syscall_handle_execv()
+      -> execv_path(path, argv)
+        -> ecall (a0=path_ptr, a1=argv_ptr, a3=SYSCALL_EXECV_PATH)
+          -> syscall_handle_execv_path()
+            -> user path を kernel バッファへ copyinstr
             -> user argv を kernel バッファへコピー
             -> process_exec(..., argc, argv_copy)
                - old user pages free
@@ -42,13 +43,13 @@ shell(run_external)
 - `a3`: syscall 番号
 - 返り値: `a0`
 
-`execv` 呼び出し:
-- ユーザ側: `execv(app_id, argv)`
+`execv_path` 呼び出し:
+- ユーザ側: `execv_path(path, argv)`
 - 実際のレジスタ:
-  - `a0 = app_id`
+  - `a0 = (int)path`
   - `a1 = (int)argv`（`const char **` の先頭）
   - `a2 = 0`
-  - `a3 = SYSCALL_EXECV`
+  - `a3 = SYSCALL_EXECV_PATH`
 
 `getargs` 呼び出し:
 - ユーザ側: `getargs(struct exec_args *out)`
@@ -79,12 +80,12 @@ shell(run_external)
 
 ## カーネル側処理
 
-### 1) `syscall_handle_execv`
+### 1) `syscall_handle_execv_path`
 `src/kernel/trap/syscall_process.c`
 
-1. `app_id` から実行イメージ（`_binary___bin_*_start/size`）を解決
-2. `SSTATUS_SUM` を有効化してユーザ空間 `argv` を読める状態にする
-3. `copy_user_argv()` で固定長バッファへコピー
+1. `path` を `copyinstr()` でカーネルバッファへコピー
+2. VFS (`fs_open/read`) から実行イメージを読み込む
+3. `copy_user_argv()` で `argv` を固定長バッファへコピー
 4. `process_exec(image, size, name, argc, argv_copy)` を実行
 
 ### 2) `process_exec`
@@ -98,11 +99,11 @@ shell(run_external)
 ### 3) trap 復帰PCの扱い
 `src/kernel/trap/trap_handler.c`
 
-`ecall` 後の PC 処理で、`SYSCALL_EXEC` と `SYSCALL_EXECV` 成功時は `sepc += 4` せず、  
+`ecall` 後の PC 処理で、`SYSCALL_EXEC_PATH` と `SYSCALL_EXECV_PATH` 成功時は `sepc += 4` せず、  
 `USER_BASE` から再開するようにしている。
 
 ```c
-if ((sysno == SYSCALL_EXEC || sysno == SYSCALL_EXECV) && f->a0 == 0) {
+if ((sysno == SYSCALL_EXEC_PATH || sysno == SYSCALL_EXECV_PATH) && f->a0 == 0) {
     user_pc = USER_BASE;
 } else {
     user_pc += 4;

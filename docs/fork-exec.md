@@ -20,10 +20,10 @@
 - `fork()`
   - 親: 子PIDを返す
   - 子: `0` を返す
-- `exec(app_id)`
+- `exec_path(path)`
   - 現在プロセスのユーザ空間を新イメージへ置換
   - PIDは維持
-- `execv(app_id, argv)`
+- `execv_path(path, argv)`
   - `exec` と同様にイメージ置換
   - 追加で引数をカーネル経由で次イメージへ受け渡す
 
@@ -78,9 +78,9 @@ f->a0 = (child_pid < 0) ? -1 : child_pid;
 
 ### 2.1 syscall入口
 
-`syscall_handle_exec()` は `app_id -> image/name` を解決し、`process_exec(image, size, name)` を呼ぶ。
+`syscall_handle_exec_path()` はパス文字列を `copyinstr` で取得し、VFS から実行イメージをロードして `process_exec(image, size, name, argc, argv)` を呼ぶ。
 
-`syscall_handle_execv()` は `exec` に加えて `argv` を受け取り、`process_exec(image, size, name, argc, argv_copy)` を呼ぶ。
+`syscall_handle_execv_path()` は `exec_path` に加えて `argv` を受け取り、`copyin/copyinstr` で固定長カーネルバッファに転送してから `process_exec(...)` を呼ぶ。
 
 ### 2.2 ユーザ空間置換
 
@@ -92,15 +92,15 @@ f->a0 = (child_pid < 0) ? -1 : child_pid;
 
 ### 2.3 ecall復帰PCの扱い
 
-`exec` 成功時は旧コードへ戻らない必要がある。  
+`exec_path/execv_path` 成功時は旧コードへ戻らない必要がある。  
 そのため `trap_handler` の `ecall` 処理で:
 
 - 通常: `user_pc += 4`
-- `SYSCALL_EXEC` 成功時: `user_pc = USER_BASE`
+- `SYSCALL_EXEC_PATH` 成功時: `user_pc = USER_BASE`
 
 として復帰先を切り替える。
 
-`execv` も同様に成功時は `user_pc = USER_BASE` へ切り替える。
+`SYSCALL_EXECV_PATH` も同様に成功時は `user_pc = USER_BASE` へ切り替える。
 
 ### 2.4 execv の引数受け渡し
 
@@ -108,10 +108,10 @@ f->a0 = (child_pid < 0) ? -1 : child_pid;
 
 流れ:
 
-1. user `execv(app_id, argv)`  
-  - syscall ABI で `a0=app_id`, `a1=argv_ptr`, `a3=SYSCALL_EXECV`
-2. kernel `syscall_handle_execv`  
-  - `SSTATUS_SUM` を有効化してユーザ `argv` を読み取り
+1. user `execv_path(path, argv)`  
+  - syscall ABI で `a0=path_ptr`, `a1=argv_ptr`, `a3=SYSCALL_EXECV_PATH`
+2. kernel `syscall_handle_execv_path`  
+  - `copyinstr(path)` と `copyin/copyinstr(argv)` でユーザ引数を読み取り
   - `copy_user_argv()` で固定長バッファへコピー
 3. `process_exec(..., argc, argv_copy)`  
   - `current_proc->exec_argc/exec_argv` を更新
@@ -138,7 +138,7 @@ shell の `fork_test` で親子戻り値と `waitpid` を確認。
 
 ### 3.2 exec_test（DEBUG）
 
-子で `exec(APP_ID_IPC_RX)` を実行し、`ipc_rx` へ置換されることを確認。
+子で `execv_path("/bin/ipc_rx", argv)` を実行し、`ipc_rx` へ置換されることを確認。
 
 確認結果:
 
@@ -148,6 +148,6 @@ shell の `fork_test` で親子戻り値と `waitpid` を確認。
 ## 4. 現在の制約（最小実装）
 
 - `fork` は COW ではなくページ全コピー
-- `exec` は `app_id` 指定のみ（path指定なし）
+- `exec` は path 指定のみ（`/bin/<app>` 実行）
 - `execv` 引数は固定長配列経由（POSIX の argv/envp スタック配置ではない）
 - FD継承/close-on-exec の詳細は未実装（Issue 4以降）

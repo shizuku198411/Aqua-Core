@@ -44,6 +44,8 @@ struct fs_node {
 struct nodefs {
     int mount_idx;
     int persistent;
+    uint8_t dirty_blocks[(BLOCKDEV_BLOCK_COUNT + 7) / 8];
+    int dirty_any;
     struct fs_node nodes[FS_MAX_NODES];
 };
 
@@ -258,8 +260,82 @@ static int pfs_block_count(void) {
     return (int) ((sizeof(struct pfs_image) + BLOCKDEV_BLOCK_SIZE - 1) / BLOCKDEV_BLOCK_SIZE);
 }
 
+static int pfs_dirty_test(struct nodefs *fs, int block_idx) {
+    if (!fs || block_idx < 0 || block_idx >= BLOCKDEV_BLOCK_COUNT) {
+        return 0;
+    }
+    return (fs->dirty_blocks[block_idx / 8] >> (block_idx % 8)) & 1;
+}
+
+static void pfs_dirty_set(struct nodefs *fs, int block_idx) {
+    if (!fs || block_idx < 0 || block_idx >= BLOCKDEV_BLOCK_COUNT) {
+        return;
+    }
+    fs->dirty_blocks[block_idx / 8] |= (uint8_t) (1u << (block_idx % 8));
+    fs->dirty_any = 1;
+}
+
+static void pfs_mark_dirty_range(struct nodefs *fs, uint32_t off, uint32_t len) {
+    if (!fs || len == 0) {
+        return;
+    }
+
+    uint32_t end = off + len;
+    uint32_t first = off / BLOCKDEV_BLOCK_SIZE;
+    uint32_t last = (end - 1) / BLOCKDEV_BLOCK_SIZE;
+    for (uint32_t b = first; b <= last; b++) {
+        pfs_dirty_set(fs, (int) b);
+    }
+}
+
+static void pfs_mark_dirty_all(struct nodefs *fs) {
+    int blocks = pfs_block_count();
+    for (int i = 0; i < blocks; i++) {
+        pfs_dirty_set(fs, i);
+    }
+}
+
+static void pfs_mark_dirty_node(struct nodefs *fs, int node_idx) {
+    if (!fs || node_idx < 0 || node_idx >= FS_MAX_NODES) {
+        return;
+    }
+
+    uint32_t node_off = (uint32_t) offsetof(struct pfs_image, nodes) +
+                        (uint32_t) node_idx * (uint32_t) sizeof(struct fs_node);
+    pfs_mark_dirty_range(fs, node_off, (uint32_t) sizeof(struct fs_node));
+}
+
+static void pfs_mark_dirty_node_data(struct nodefs *fs, int node_idx, uint32_t data_off, uint32_t len) {
+    if (!fs || node_idx < 0 || node_idx >= FS_MAX_NODES || len == 0 || data_off >= FS_FILE_MAX_SIZE) {
+        return;
+    }
+
+    uint32_t clipped = len;
+    if (clipped > FS_FILE_MAX_SIZE - data_off) {
+        clipped = FS_FILE_MAX_SIZE - data_off;
+    }
+    uint32_t off = (uint32_t) offsetof(struct pfs_image, nodes) +
+                   (uint32_t) node_idx * (uint32_t) sizeof(struct fs_node) +
+                   (uint32_t) offsetof(struct fs_node, data) +
+                   data_off;
+    pfs_mark_dirty_range(fs, off, clipped);
+}
+
+static void pfs_mark_dirty_node_size(struct nodefs *fs, int node_idx) {
+    if (!fs || node_idx < 0 || node_idx >= FS_MAX_NODES) {
+        return;
+    }
+    uint32_t off = (uint32_t) offsetof(struct pfs_image, nodes) +
+                   (uint32_t) node_idx * (uint32_t) sizeof(struct fs_node) +
+                   (uint32_t) offsetof(struct fs_node, size);
+    pfs_mark_dirty_range(fs, off, (uint32_t) sizeof(uint32_t));
+}
+
 static int pfs_sync(struct nodefs *fs) {
     if (!fs->persistent) {
+        return 0;
+    }
+    if (!fs->dirty_any) {
         return 0;
     }
 
@@ -276,6 +352,9 @@ static int pfs_sync(struct nodefs *fs) {
     }
 
     for (int i = 0; i < blocks; i++) {
+        if (!pfs_dirty_test(fs, i)) {
+            continue;
+        }
         memset(block, 0, sizeof(block));
         int off = i * BLOCKDEV_BLOCK_SIZE;
         int remain = (int) sizeof(*img) - off;
@@ -286,8 +365,10 @@ static int pfs_sync(struct nodefs *fs) {
         if (blockdev_write((uint32_t) i, block) < 0) {
             return -1;
         }
+        fs->dirty_blocks[i / 8] &= (uint8_t) ~(1u << (i % 8));
     }
 
+    fs->dirty_any = 0;
     return 0;
 }
 
@@ -333,6 +414,7 @@ static void nodefs_init_instance(struct nodefs *fs, int persistent) {
 
     if (img->magic != PFS_MAGIC) {
         nodefs_format(fs);
+        pfs_mark_dirty_all(fs);
         if (pfs_sync(fs) < 0) {
             PANIC("pfs initial sync failed");
         }
@@ -342,6 +424,7 @@ static void nodefs_init_instance(struct nodefs *fs, int persistent) {
     memcpy(fs->nodes, img->nodes, sizeof(fs->nodes));
     if (!fs->nodes[0].used || fs->nodes[0].type != FS_TYPE_DIR) {
         nodefs_format(fs);
+        pfs_mark_dirty_all(fs);
         if (pfs_sync(fs) < 0) {
             PANIC("pfs recovery sync failed");
         }
@@ -519,6 +602,7 @@ static int nodefs_open(void *ctx,
             fs->nodes[idx].used = 0;
             return -1;
         }
+        pfs_mark_dirty_node(fs, idx);
         if (pfs_sync(fs) < 0) {
             return -1;
         }
@@ -532,6 +616,7 @@ static int nodefs_open(void *ctx,
     if ((flags & O_TRUNC) && (flags & O_WRONLY)) {
         fs->nodes[node].size = 0;
         memset(fs->nodes[node].data, 0, sizeof(fs->nodes[node].data));
+        pfs_mark_dirty_node(fs, node);
         if (pfs_sync(fs) < 0) {
             return -1;
         }
@@ -595,10 +680,18 @@ static int nodefs_write(void *ctx,
         to_write = writable;
     }
 
+    uint32_t before = *offset;
+    uint32_t old_size = n->size;
     memcpy(&n->data[*offset], buf, to_write);
     *offset += to_write;
     if (*offset > n->size) {
         n->size = *offset;
+    }
+    if (fs->persistent && to_write > 0) {
+        pfs_mark_dirty_node_data(fs, node, before, to_write);
+        if (n->size != old_size) {
+            pfs_mark_dirty_node_size(fs, node);
+        }
     }
 
     return (int) to_write;
@@ -630,6 +723,7 @@ static int nodefs_mkdir(void *ctx, const char *path) {
         return -1;
     }
 
+    pfs_mark_dirty_node(fs, idx);
     if (pfs_sync(fs) < 0) {
         return -1;
     }
@@ -684,6 +778,7 @@ static int nodefs_unlink(void *ctx, const char *path) {
     }
 
     memset(&fs->nodes[node], 0, sizeof(fs->nodes[node]));
+    pfs_mark_dirty_node(fs, node);
     if (pfs_sync(fs) < 0) {
         return -1;
     }
@@ -705,6 +800,7 @@ static int nodefs_rmdir(void *ctx, const char *path) {
     }
 
     memset(&fs->nodes[node], 0, sizeof(fs->nodes[node]));
+    pfs_mark_dirty_node(fs, node);
     if (pfs_sync(fs) < 0) {
         return -1;
     }
@@ -1236,6 +1332,10 @@ void fs_init_process_stdio(int pid) {
 
 uint32_t fs_get_pfs_image_blocks(void) {
     return (uint32_t) pfs_block_count();
+}
+
+uint32_t fs_get_pfs_sync_mode(void) {
+    return KERNEL_PFS_SYNC_MODE_DIRTY;
 }
 
 int fs_get_root_entry(int *mount_idx, int *node_idx) {

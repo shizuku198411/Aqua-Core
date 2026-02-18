@@ -21,10 +21,6 @@ void handle_syscall(struct trap_frame *f) {
             syscall_handle_ps(f);
             break;
 
-        case SYSCALL_CLONE:
-            syscall_handle_clone(f);
-            break;
-
         case SYSCALL_WAITPID:
             syscall_handle_waitpid(f);
             break;
@@ -89,16 +85,8 @@ void handle_syscall(struct trap_frame *f) {
             syscall_handle_fork(f);
             break;
 
-        case SYSCALL_EXEC:
-            syscall_handle_exec(f);
-            break;
-
         case SYSCALL_DUP2:
             syscall_handle_dup2(f);
-            break;
-
-        case SYSCALL_EXECV:
-            syscall_handle_execv(f);
             break;
 
         case SYSCALL_GETARGS:

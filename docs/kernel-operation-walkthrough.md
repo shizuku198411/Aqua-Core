@@ -27,7 +27,7 @@ boot
 
 1. shell がコマンドを解析
 2. `fork` で子を作成
-3. 子が `execv(app, argv)` でイメージ置換
+3. 子が `execv_path(path, argv)` でイメージ置換（例: `/bin/ls`）
 4. 親は `waitpid` で待機（`&` なしの場合）
 5. 子終了で親が再開
 
@@ -37,7 +37,7 @@ boot
 shell(pid=1)
   fork()
    ├─ parent: waitpid(child) -> WAIT_CHILD_EXIT
-   └─ child : execv(ls, ["ls","/tmp"])
+   └─ child : execv_path("/bin/ls", ["ls","/tmp"])
               -> run -> exit
 parent wakes up -> prompt
 ```
