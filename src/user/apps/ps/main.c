@@ -75,6 +75,7 @@ int main(int argc, char **argv) {
 
         char args[PROC_EXEC_ARGV_MAX * (PROC_EXEC_ARG_LEN + 1)];
         build_args_string(&info, args, sizeof(args));
+        const char *cmd = (args[0] != '\0') ? args : info.name;
 
         printf("%d\t%d\t%s\t%s\t%d\t%s\n",
                info.pid,
@@ -82,7 +83,7 @@ int main(int argc, char **argv) {
                proc_state_to_string(info.state),
                proc_wait_reason_to_string(info.wait_reason),
                info.exit_code,
-               args);
+               cmd);
     }
     return 0;
 }
