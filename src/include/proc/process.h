@@ -66,6 +66,7 @@ struct ps_info {
     int  parent_pid;
     int  state;
     int  wait_reason;
+    int  exit_code;
     char name[PROC_NAME_MAX];
     int  argc;
     char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN];

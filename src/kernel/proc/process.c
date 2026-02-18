@@ -1109,7 +1109,7 @@ int procfs_sync_process(const struct process *proc) {
 
     char dir_path[FS_PATH_MAX];
     char status_path[FS_PATH_MAX];
-    char content[256];
+    char content[384];
     size_t pos = 0;
 
     // Ensure /proc/<pid> exists (ignore EEXIST-like failures).
@@ -1133,6 +1133,7 @@ int procfs_sync_process(const struct process *proc) {
     if (append_key_val_str(content, sizeof(content), &pos, "state", proc_state_str(proc->state)) < 0) return -1;
     if (append_key_val_u32(content, sizeof(content), &pos, "wait_reason_id", (uint32_t) proc->wait_reason) < 0) return -1;
     if (append_key_val_str(content, sizeof(content), &pos, "wait_reason", proc_wait_reason_str(proc->wait_reason)) < 0) return -1;
+    if (append_key_val_u32(content, sizeof(content), &pos, "exit_code", (uint32_t) proc->exit_code) < 0) return -1;
     if (append_key_val_str(content, sizeof(content), &pos, "cwd", proc->cwd_path) < 0) return -1;
 
     int fd = fs_open(proc->pid, status_path, O_CREAT | O_WRONLY | O_TRUNC);

@@ -136,6 +136,7 @@ static int write_user_ps_info(struct ps_info *user_ptr, const struct process *pr
     kbuf.parent_pid = proc->parent_pid;
     kbuf.state = proc->state;
     kbuf.wait_reason = proc->wait_reason;
+    kbuf.exit_code = proc->exit_code;
     strcpy_s(kbuf.name, PROC_NAME_MAX, proc->name);
     kbuf.argc = proc->exec_argc;
     memcpy(&kbuf.argv, proc->exec_argv, PROC_EXEC_ARG_LEN * PROC_EXEC_ARGV_MAX);
