@@ -173,6 +173,7 @@ def run_tests(h: Harness):
             b"pfs blk size  :",
             b"pfs img blks  :",
             b"pfs img bytes :",
+            b"pfs sync mode :",
         ]
         for line in expected_lines:
             h.wait_for(line, 10, start=start)
@@ -207,6 +208,7 @@ def run_tests(h: Harness):
         pfs_blk_size = parse_dec("pfs blk size")
         pfs_img_blks = parse_dec("pfs img blks")
         pfs_img_bytes = parse_dec("pfs img bytes")
+        pfs_sync_mode = parse_dec("pfs sync mode")
 
         if total_pages <= 0:
             raise AssertionError("total pages must be > 0")
@@ -228,6 +230,8 @@ def run_tests(h: Harness):
             raise AssertionError(
                 f"pfs img bytes mismatch: {pfs_img_bytes} != {pfs_img_blks}*{pfs_blk_size}"
             )
+        if pfs_sync_mode != 1:
+            raise AssertionError(f"unexpected pfs sync mode: {pfs_sync_mode}")
 
     run_case("kernel_info_app", case_kernel_info)
 

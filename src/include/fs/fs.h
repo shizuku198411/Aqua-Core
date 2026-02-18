@@ -5,8 +5,8 @@
 #define FS_PATH_MAX      64
 #define FS_NAME_MAX      16
 #define FS_FD_MAX        16
-#define FS_MAX_NODES     128
-#define FS_FILE_MAX_SIZE 512
+#define FS_MAX_NODES     256
+#define FS_FILE_MAX_SIZE 2048
 
 #define FS_TYPE_FILE 1
 #define FS_TYPE_DIR  2

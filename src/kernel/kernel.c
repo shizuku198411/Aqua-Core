@@ -225,6 +225,8 @@ void kernel_bootstrap(void) {
     printf("     pfs blk size    : %d bytes\n", BLOCKDEV_BLOCK_SIZE);
     printf("     pfs img blks    : %d\n", (int) fs_get_pfs_image_blocks());
     printf("     pfs img bytes   : %d\n", (int) (fs_get_pfs_image_blocks() * BLOCKDEV_BLOCK_SIZE));
+    printf("     pfs sync mode   : %s\n",
+           (fs_get_pfs_sync_mode() == KERNEL_PFS_SYNC_MODE_DIRTY) ? "dirty-block" : "full-image");
 
     printf("[*] kernel bootstrap completed.\n");
 }
@@ -258,6 +260,7 @@ void kernel_get_info(struct kernel_info *out) {
     out->pfs_block_count = BLOCKDEV_BLOCK_COUNT;
     out->pfs_image_blocks = fs_get_pfs_image_blocks();
     out->pfs_image_bytes = out->pfs_image_blocks * BLOCKDEV_BLOCK_SIZE;
+    out->pfs_sync_mode = fs_get_pfs_sync_mode();
 }
 
 void kernel_main(void) {

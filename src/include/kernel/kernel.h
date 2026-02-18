@@ -94,6 +94,8 @@ struct trap_frame {
 #define SSTATUS_SPIE (1 << 5)
 #define SSTATUS_SUM  (1u << 18)
 #define KERNEL_VERSION_MAX 16
+#define KERNEL_PFS_SYNC_MODE_FULL  0
+#define KERNEL_PFS_SYNC_MODE_DIRTY 1
 
 struct kernel_info {
     char version[KERNEL_VERSION_MAX];
@@ -112,6 +114,7 @@ struct kernel_info {
     uint32_t pfs_block_count;
     uint32_t pfs_image_blocks;
     uint32_t pfs_image_bytes;
+    uint32_t pfs_sync_mode;
 };
 
 void user_entry(void);

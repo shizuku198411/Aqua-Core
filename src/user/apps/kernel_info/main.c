@@ -28,5 +28,8 @@ int main(int argc, char **argv) {
     printf("pfs blk size  : %d bytes\n", info.pfs_block_size);
     printf("pfs img blks  : %d\n", info.pfs_image_blocks);
     printf("pfs img bytes : %d\n", info.pfs_image_bytes);
+    printf("pfs sync mode : %d (%s)\n",
+           info.pfs_sync_mode,
+           (info.pfs_sync_mode == KERNEL_PFS_SYNC_MODE_DIRTY) ? "dirty-block" : "full-image");
     return 0;
 }
