@@ -28,7 +28,8 @@ long ac_getchar(void) {
     return -1;
 }
 
-void ac_exit(void) {
+void ac_exit(int status) {
+    (void) status;
     for (;;) {
     }
 }

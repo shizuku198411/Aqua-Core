@@ -147,10 +147,11 @@ static int write_user_ps_info(struct ps_info *user_ptr, const struct process *pr
 }
 
 void syscall_handle_exit(struct trap_frame *f) {
-    (void) f;
+    int status = (int) f->a0;
 
     // Treat pid=1 as init process. When init exits, shut down kernel.
     if (current_proc && current_proc == init_proc) {
+        current_proc->exit_code = status;
         current_proc->state = PROC_EXITED;
         current_proc->wait_reason = PROC_WAIT_NONE;
         current_proc->wait_pid = -1;
@@ -161,6 +162,7 @@ void syscall_handle_exit(struct trap_frame *f) {
     }
 
     orphan_children(current_proc->pid);
+    current_proc->exit_code = status;
     current_proc->state = PROC_EXITED;
     current_proc->wait_reason = PROC_WAIT_NONE;
     current_proc->wait_pid = -1;
@@ -207,7 +209,8 @@ void syscall_handle_clone(struct trap_frame *f) {
 
 void syscall_handle_waitpid(struct trap_frame *f) {
     int target_pid = (int) f->a0;
-    int options = (int) f->a1;
+    int *status_ptr = (int *) f->a1;
+    int options = (int) f->a2;
     if (target_pid <= 0 && target_pid != -1) {
         f->a0 = -1;
         return;
@@ -217,7 +220,15 @@ void syscall_handle_waitpid(struct trap_frame *f) {
         return;
     }
 
-    f->a0 = wait_for_child_exit(current_proc->pid, target_pid, options);
+    int exit_status = 0;
+    int waited_pid = wait_for_child_exit(current_proc->pid, target_pid, options, &exit_status);
+    if (waited_pid > 0 && status_ptr) {
+        if (copyout(status_ptr, &exit_status, sizeof(exit_status)) < 0) {
+            f->a0 = -1;
+            return;
+        }
+    }
+    f->a0 = waited_pid;
 }
 
 void syscall_handle_kill(struct trap_frame *f) {

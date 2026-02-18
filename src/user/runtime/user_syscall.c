@@ -47,12 +47,12 @@ int spawn(int app_id) {
     return clone(app_id);
 }
 
-int waitpid(int pid) {
-    return syscall(SYSCALL_WAITPID, pid, 0, 0);
+int waitpid(int pid, int *status, int options) {
+    return syscall(SYSCALL_WAITPID, pid, (int) status, options);
 }
 
 int waitpid_opts(int pid, int options) {
-    return syscall(SYSCALL_WAITPID, pid, options, 0);
+    return waitpid(pid, NULL, options);
 }
 
 int ipc_send(int pid, int message) {
@@ -76,8 +76,8 @@ int kernel_info(struct kernel_info *out) {
 }
 
 __attribute__((noreturn))
-void exit(void) {
-    syscall(SYSCALL_EXIT, 0, 0, 0);
+void exit(int status) {
+    syscall(SYSCALL_EXIT, status, 0, 0);
     __builtin_unreachable();
 }
 

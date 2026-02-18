@@ -504,15 +504,18 @@ int run_external(char **argv, int argc, bool background) {
         int ret = execv(app_id, exec_argv);
         if (ret < 0) {
             printf("exec failed\n");
-            exit();
+            exit(127);
         }
-        exit();
+        exit(0);
     }
 
     // parent
     if (!background) {
-        int waited = waitpid(pid);
-        (void)waited;
+        int status = 0;
+        int waited = waitpid(pid, &status, 0);
+        if (waited > 0 && status != 0) {
+            printf("exit status: %d\n", status);
+        }
     } else {
         printf("[bg] pid=%d\n", pid);
     }

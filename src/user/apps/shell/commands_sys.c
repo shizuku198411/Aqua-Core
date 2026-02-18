@@ -177,5 +177,5 @@ int shell_cmd_net_recv_raw(int max_bytes) {
 
 __attribute__((noreturn))
 void shell_cmd_exit(void) {
-    exit();
+    exit(0);
 }

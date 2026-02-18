@@ -3,8 +3,11 @@
 #include "time/rtc.h"
 
 int main(int argc, char **argv) {
-    (void) argc;
-    (void) argv;
+    if (argc >= 2 && argv && argv[1] && strcmp(argv[1], "--fail") == 0) {
+        printf("date: forced failure\n");
+        return 42;
+    }
+
     struct time_spec info;
     int ret = gettime(&info);
     if (ret < 0) {
