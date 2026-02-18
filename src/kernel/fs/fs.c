@@ -9,6 +9,9 @@ extern void syscall_handle_getchar(struct trap_frame *f);
 
 #define VFS_MOUNT_MAX 4
 #define PFS_MAGIC 0x50465331u
+#define APPFS_MAGIC 0x41504653u
+#define APPFS_START_BLOCK 192u
+#define APPFS_MAX_ENTRIES 32
 
 struct vfs_fd {
     int used;
@@ -18,6 +21,8 @@ struct vfs_fd {
     int flags;
     int backend_type;
     int dirty;
+    uint32_t app_image_offset;
+    uint32_t app_image_size;
 };
 
 static struct vfs_fd fd_table[PROCS_MAX][FS_FD_MAX];
@@ -25,6 +30,7 @@ static struct vfs_fd fd_table[PROCS_MAX][FS_FD_MAX];
 #define FD_BACKEND_VFS     0
 #define FD_BACKEND_CONSOLE 1
 #define FD_BACKEND_NET     2
+#define FD_BACKEND_APPIMG  3
 
 struct fs_node {
     int used;
@@ -69,6 +75,21 @@ static struct nodefs rootfs;
 static struct nodefs tmpfs;
 static struct nodefs procfs;
 static struct pfs_image pfs_work_img;
+
+struct appfs_header_disk {
+    uint32_t magic;
+    uint32_t count;
+};
+
+struct appfs_entry_disk {
+    char name[FS_NAME_MAX];
+    uint32_t data_off;
+    uint32_t size;
+};
+
+static struct appfs_entry_disk appfs_entries[APPFS_MAX_ENTRIES];
+static uint32_t appfs_entry_count;
+static int appfs_ready;
 
 static int console_read_fallback(void *buf, size_t size) {
     if (!buf) {
@@ -134,6 +155,80 @@ static int str_len(const char *s) {
         n++;
     }
     return n;
+}
+
+static int appfs_read_bytes(uint32_t abs_off, void *out, size_t n) {
+    if (!out && n > 0) {
+        return -1;
+    }
+    uint8_t block[BLOCKDEV_BLOCK_SIZE];
+    uint8_t *dst = (uint8_t *) out;
+    size_t done = 0;
+
+    while (done < n) {
+        uint32_t cur = abs_off + (uint32_t) done;
+        uint32_t blk = cur / BLOCKDEV_BLOCK_SIZE;
+        uint32_t inblk = cur % BLOCKDEV_BLOCK_SIZE;
+        if (blockdev_read(blk, block) < 0) {
+            return -1;
+        }
+
+        size_t chunk = BLOCKDEV_BLOCK_SIZE - inblk;
+        if (chunk > n - done) {
+            chunk = n - done;
+        }
+        memcpy(dst + done, block + inblk, chunk);
+        done += chunk;
+    }
+    return 0;
+}
+
+static int appfs_load(void) {
+    struct appfs_header_disk hdr;
+    uint32_t base = APPFS_START_BLOCK * BLOCKDEV_BLOCK_SIZE;
+    if (appfs_read_bytes(base, &hdr, sizeof(hdr)) < 0) {
+        return -1;
+    }
+    if (hdr.magic != APPFS_MAGIC || hdr.count > APPFS_MAX_ENTRIES) {
+        return -1;
+    }
+
+    size_t ents_size = hdr.count * sizeof(struct appfs_entry_disk);
+    if (ents_size > 0) {
+        if (appfs_read_bytes(base + (uint32_t) sizeof(hdr), appfs_entries, ents_size) < 0) {
+            return -1;
+        }
+    }
+    appfs_entry_count = hdr.count;
+    appfs_ready = 1;
+    return 0;
+}
+
+static int resolve_appfs_path(const char *path, int *entry_idx_out) {
+    if (!path || !entry_idx_out || !appfs_ready) {
+        return -1;
+    }
+    if (!(path[0] == '/' && path[1] == 'b' && path[2] == 'i' && path[3] == 'n' && path[4] == '/')) {
+        return -1;
+    }
+
+    const char *name = path + 5;
+    if (name[0] == '\0') {
+        return -1;
+    }
+    for (const char *p = name; *p; p++) {
+        if (*p == '/') {
+            return -1;
+        }
+    }
+
+    for (uint32_t i = 0; i < appfs_entry_count; i++) {
+        if (strcmp(name, appfs_entries[i].name) == 0) {
+            *entry_idx_out = (int) i;
+            return 0;
+        }
+    }
+    return -1;
 }
 
 static int next_component(const char *path, int *pos, char *out_name) {
@@ -730,6 +825,8 @@ static int vfs_alloc_fd(int pid, int mount_idx, int node_index, uint32_t offset,
             fd_table[pid][fd].flags = flags;
             fd_table[pid][fd].backend_type = FD_BACKEND_VFS;
             fd_table[pid][fd].dirty = 0;
+            fd_table[pid][fd].app_image_offset = 0;
+            fd_table[pid][fd].app_image_size = 0;
             return fd;
         }
     }
@@ -763,6 +860,13 @@ void fs_init(void) {
     nodefs_init_instance(&procfs, 0);
     printf("OK\n");
 
+    printf("     [fs] init appfs (/bin on disk image)...");
+    if (appfs_load() < 0) {
+        printf("SKIP\n");
+    } else {
+        printf("OK (%d entries)\n", (int) appfs_entry_count);
+    }
+
     // mount rootfs
     printf("     [fs] mount: rootfs -> / ...");
     if (vfs_mount("/", &nodefs_ops, &rootfs) < 0) {
@@ -795,6 +899,13 @@ void fs_init(void) {
         PANIC("failed to mount procfs");
     }
     printf("OK\n");
+
+    // Ensure /bin mountpoint-like directory exists in root namespace.
+    if (nodefs_resolve_path(&rootfs, "/bin") < 0) {
+        printf("      [fs] create mountpoint: /bin ...");
+        (void) nodefs_mkdir(&rootfs, "/bin");
+        printf("OK\n");
+    }
 }
 
 int fs_fork_copy_fds(int parent_pid, int child_pid) {
@@ -834,6 +945,17 @@ int fs_open(int pid, const char *path, int flags) {
         int fd = vfs_alloc_fd(pid, -1, -1, 0, flags);
         if (fd >= 0) {
             fd_table[pid][fd].backend_type = FD_BACKEND_NET;
+        }
+        return fd;
+    }
+
+    int app_idx = -1;
+    if (resolve_appfs_path(path, &app_idx) == 0) {
+        int fd = vfs_alloc_fd(pid, -1, app_idx, 0, O_RDONLY);
+        if (fd >= 0) {
+            fd_table[pid][fd].backend_type = FD_BACKEND_APPIMG;
+            fd_table[pid][fd].app_image_offset = appfs_entries[app_idx].data_off;
+            fd_table[pid][fd].app_image_size = appfs_entries[app_idx].size;
         }
         return fd;
     }
@@ -878,6 +1000,8 @@ int fs_close(int pid, int fd) {
     fd_table[pid][fd].flags = 0;
     fd_table[pid][fd].backend_type = FD_BACKEND_VFS;
     fd_table[pid][fd].dirty = 0;
+    fd_table[pid][fd].app_image_offset = 0;
+    fd_table[pid][fd].app_image_size = 0;
     return 0;
 }
 
@@ -902,6 +1026,20 @@ int fs_read(int pid, int fd, void *buf, size_t size) {
     }
     if (f->backend_type == FD_BACKEND_NET) {
         return net_backend_read(buf, size);
+    }
+    if (f->backend_type == FD_BACKEND_APPIMG) {
+        if (f->offset >= f->app_image_size) {
+            return 0;
+        }
+        size_t remain = (size_t) (f->app_image_size - f->offset);
+        size_t n = (size < remain) ? size : remain;
+        uint32_t base = APPFS_START_BLOCK * BLOCKDEV_BLOCK_SIZE;
+        uint32_t abs_off = base + f->app_image_offset + f->offset;
+        if (appfs_read_bytes(abs_off, buf, n) < 0) {
+            return -1;
+        }
+        f->offset += (uint32_t) n;
+        return (int) n;
     }
 
     if (f->mount_idx < 0 || f->mount_idx >= VFS_MOUNT_MAX || !mounts[f->mount_idx].used) {
@@ -936,6 +1074,9 @@ int fs_write(int pid, int fd, const void *buf, size_t size) {
     }
     if (f->backend_type == FD_BACKEND_NET) {
         return net_backend_write(buf, size);
+    }
+    if (f->backend_type == FD_BACKEND_APPIMG) {
+        return -1;
     }
 
     if (f->mount_idx < 0 || f->mount_idx >= VFS_MOUNT_MAX || !mounts[f->mount_idx].used) {
@@ -977,6 +1118,20 @@ int fs_readdir(const char *path, int index, struct fs_dirent *out) {
     if (!path || !out || index < 0) {
         return -1;
     }
+
+    if (appfs_ready &&
+        ((path[0] == '/' && path[1] == 'b' && path[2] == 'i' && path[3] == 'n' && path[4] == '\0') ||
+         (path[0] == '/' && path[1] == 'b' && path[2] == 'i' && path[3] == 'n' && path[4] == '/' && path[5] == '\0'))) {
+        if ((uint32_t) index >= appfs_entry_count) {
+            return -1;
+        }
+        memset(out, 0, sizeof(*out));
+        strcpy_s(out->name, FS_NAME_MAX, appfs_entries[index].name);
+        out->type = FS_TYPE_FILE;
+        out->size = appfs_entries[index].size;
+        return 0;
+    }
+
     if (vfs_resolve_mount(path, &m, &subpath) < 0) {
         return -1;
     }
@@ -1044,6 +1199,8 @@ void fs_on_process_recycle(int pid) {
         fd_table[pid][fd].flags = 0;
         fd_table[pid][fd].backend_type = FD_BACKEND_VFS;
         fd_table[pid][fd].dirty = 0;
+        fd_table[pid][fd].app_image_offset = 0;
+        fd_table[pid][fd].app_image_size = 0;
     }
 }
 
@@ -1060,6 +1217,8 @@ void fs_init_process_stdio(int pid) {
         fd_table[pid][fd].flags = 0;
         fd_table[pid][fd].backend_type = FD_BACKEND_VFS;
         fd_table[pid][fd].dirty = 0;
+        fd_table[pid][fd].app_image_offset = 0;
+        fd_table[pid][fd].app_image_size = 0;
     }
 
     fd_table[pid][0].used = 1;

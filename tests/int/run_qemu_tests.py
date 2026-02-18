@@ -134,6 +134,7 @@ def run_tests(h: Harness):
 
     # shell itself is validated by interactive prompt availability.
     run_cmd_case("date_app", "date", [b"UTC"])
+    run_cmd_case("date_path_app", "/bin/date", [b"UTC"])
     run_cmd_case("ls_app", "ls /", [b"tmp/", b"proc/"])
     run_cmd_case("mkdir_app", "mkdir /tmp/itest_dir", [])
     run_cmd_case("touch_app", "touch /tmp/itest_dir/file1", [])
@@ -141,13 +142,14 @@ def run_tests(h: Harness):
     run_cmd_case("cat_app", "cat /tmp/itest_dir/file1", [b"hello"])
     run_cmd_case("rm_app", "rm /tmp/itest_dir/file1", [])
     run_cmd_case("rmdir_app", "rmdir /tmp/itest_dir", [])
-    run_cmd_case("ps_app", "ps", [b"PID\tPPID\tSTATE\tREASON\tCMD"])
+    run_cmd_case("ps_app", "ps", [b"PID\tPPID\tSTATE\tREASON\tEXIT\tCMD"])
     run_cmd_case("bitmap_app", "bitmap", [b"bitmap: total="])
     run_cmd_case("kill_app", "kill 0", [b"kill failed", b"invalid pid specified"])
     run_cmd_case("ipc_rx_app", "ipc_rx sender 9999 1", [b"ipc_send failed"])
     run_cmd_case("ping_app", "ping bad.ip", [b"invalid ipv4: bad.ip"])
     run_cmd_case("udp_send_app", "udp_send 999.1.1.1 1 1 x", [b"invalid ipv4"])
     run_cmd_case("nslookup_app", "nslookup", [b"usage: nslookup <name> [dns-server-ipv4]"])
+    run_cmd_case("exit_status_nonzero", "date --fail", [b"date: forced failure", b"exit status: 42"])
 
     def case_kernel_info():
         # Validate that exported kernel parameters are present and populated.

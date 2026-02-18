@@ -33,6 +33,7 @@ struct process {
     int         wait_reason;            // why this process is waiting
     int         wait_pid;               // target child pid for waitpid (-1:any)
     int         parent_pid;             // parent pid (0: no parent)
+    int         exit_code;              // process exit code
     uint32_t    user_pages;             // mapped user pages count
     vaddr_t     sp;                     // sp for context switch
     uint32_t    *page_table;            // page table
@@ -65,6 +66,7 @@ struct ps_info {
     int  parent_pid;
     int  state;
     int  wait_reason;
+    int  exit_code;
     char name[PROC_NAME_MAX];
     int  argc;
     char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN];
@@ -83,7 +85,7 @@ struct process *create_process(const void *image, size_t image_size, const char 
 void wakeup_input_waiters(void);
 void notify_child_exit(struct process *child);
 void orphan_children(int parent_pid);
-int wait_for_child_exit(int parent_pid, int target_pid, int options);
+int wait_for_child_exit(int parent_pid, int target_pid, int options, int *exit_code_out);
 void scheduler_on_timer_tick(void);
 bool scheduler_should_yield(void);
 int process_ipc_send(int src_pid, int dst_pid, uint32_t message);

@@ -43,6 +43,7 @@ static void process_apply_pending_signal(struct process *proc) {
         }
 
         orphan_children(proc->pid);
+        proc->exit_code = 128 + SIGKILL;
         proc->state = PROC_EXITED;
         proc->wait_reason = PROC_WAIT_NONE;
         proc->wait_pid = -1;
@@ -210,6 +211,7 @@ static void recycle_process_slot(struct process *proc) {
     proc->wait_pid = -1;
     proc->parent_pid = 0;
     proc->pid = 0;
+    proc->exit_code = 0;
     proc->sp = 0;
     proc->time_slice = SCHED_TIME_SLICE_TICKS;
     proc->run_ticks = 0;
@@ -403,6 +405,7 @@ struct process *create_process(const void *image, size_t image_size, const char 
     proc->wait_reason = PROC_WAIT_NONE;
     proc->wait_pid = -1;
     proc->parent_pid = 0;
+    proc->exit_code = 0;
     proc->user_pages = user_pages;
     proc->sp = (uint32_t) sp;
     proc->page_table = page_table;
@@ -497,6 +500,7 @@ struct process *alloc_proc_slot() {
     proc->wait_reason = PROC_WAIT_NONE;
     proc->wait_pid = -1;
     proc->parent_pid = 0;
+    proc->exit_code = 0;
     proc->sleep_deadline_tick = 0;
     clear_exec_args(proc);
     return proc;
@@ -651,6 +655,7 @@ int process_exec(const void *image,
     set_process_name(current_proc, name);
     current_proc->wait_reason = PROC_WAIT_NONE;
     current_proc->wait_pid = -1;
+    current_proc->exit_code = 0;
     current_proc->sleep_deadline_tick = 0;
     current_proc->time_slice = SCHED_TIME_SLICE_TICKS;
     current_proc->run_ticks = 0;
@@ -816,7 +821,7 @@ void orphan_children(int parent_pid) {
 }
 
 
-int wait_for_child_exit(int parent_pid, int target_pid, int options) {
+int wait_for_child_exit(int parent_pid, int target_pid, int options, int *exit_code_out) {
     if (parent_pid <= 0) {
         return -1;
     }
@@ -842,6 +847,10 @@ int wait_for_child_exit(int parent_pid, int target_pid, int options) {
                     continue;
                 }
                 int exited_pid = proc->pid;
+                int exited_code = proc->exit_code;
+                if (exit_code_out) {
+                    *exit_code_out = exited_code;
+                }
                 recycle_process_slot(proc);
                 return exited_pid;
             }
@@ -864,7 +873,7 @@ int wait_for_child_exit(int parent_pid, int target_pid, int options) {
 }
 
 static int reap_child_nonblock_for_parent(int parent_pid) {
-    return wait_for_child_exit(parent_pid, -1, WAITPID_NOHANG);
+    return wait_for_child_exit(parent_pid, -1, WAITPID_NOHANG, NULL);
 }
 
 static bool has_exited_child_for_parent(int parent_pid) {
@@ -1100,7 +1109,7 @@ int procfs_sync_process(const struct process *proc) {
 
     char dir_path[FS_PATH_MAX];
     char status_path[FS_PATH_MAX];
-    char content[256];
+    char content[384];
     size_t pos = 0;
 
     // Ensure /proc/<pid> exists (ignore EEXIST-like failures).
@@ -1124,6 +1133,7 @@ int procfs_sync_process(const struct process *proc) {
     if (append_key_val_str(content, sizeof(content), &pos, "state", proc_state_str(proc->state)) < 0) return -1;
     if (append_key_val_u32(content, sizeof(content), &pos, "wait_reason_id", (uint32_t) proc->wait_reason) < 0) return -1;
     if (append_key_val_str(content, sizeof(content), &pos, "wait_reason", proc_wait_reason_str(proc->wait_reason)) < 0) return -1;
+    if (append_key_val_u32(content, sizeof(content), &pos, "exit_code", (uint32_t) proc->exit_code) < 0) return -1;
     if (append_key_val_str(content, sizeof(content), &pos, "cwd", proc->cwd_path) < 0) return -1;
 
     int fd = fs_open(proc->pid, status_path, O_CREAT | O_WRONLY | O_TRUNC);

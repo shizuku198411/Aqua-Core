@@ -5,6 +5,8 @@
 #include "kernel/kernel.h"
 #include "core/commonlibs.h"
 #include "kernel/page_access.h"
+#include "fs/internal.h"
+#include "mm/memory.h"
 
 extern struct process *current_proc;
 extern struct process *init_proc;
@@ -27,6 +29,9 @@ extern char _binary___bin_bitmap_bin_start[], _binary___bin_bitmap_bin_size[];  
 extern char _binary___bin_ping_bin_start[], _binary___bin_ping_bin_size[];          // ping
 extern char _binary___bin_udp_send_bin_start[], _binary___bin_udp_send_bin_size[];  // udp_send
 extern char _binary___bin_nslookup_bin_start[], _binary___bin_nslookup_bin_size[];  // nslookup
+
+#define EXEC_PATH_MAX       FS_PATH_MAX
+#define EXEC_IMAGE_MAX_SIZE (128 * 1024)
 
 static int resolve_app_image(int app_id, const void **image_out, size_t *size_out, const char **name_out) {
     if (!image_out || !size_out || !name_out) {
@@ -124,6 +129,114 @@ static int resolve_app_image(int app_id, const void **image_out, size_t *size_ou
     }
 }
 
+static int basename_from_path(const char *path, char out_name[PROC_NAME_MAX]) {
+    if (!path || !out_name || path[0] == '\0') {
+        return -1;
+    }
+
+    int last = 0;
+    for (int i = 0; path[i] != '\0'; i++) {
+        if (path[i] == '/') {
+            last = i + 1;
+        }
+    }
+    if (path[last] == '\0') {
+        return -1;
+    }
+    strcpy_s(out_name, PROC_NAME_MAX, path + last);
+    return 0;
+}
+
+static int load_exec_image_from_path(const char *path,
+                                     void **image_out,
+                                     size_t *size_out,
+                                     uint32_t *pages_out) {
+    if (!path || !image_out || !size_out || !pages_out || !current_proc) {
+        return -1;
+    }
+
+    int fd = fs_open(current_proc->pid, path, O_RDONLY);
+    if (fd < 0) {
+        return -1;
+    }
+
+    uint32_t pages = (EXEC_IMAGE_MAX_SIZE + PAGE_SIZE - 1) / PAGE_SIZE;
+    void *buf = (void *) alloc_pages(pages);
+    if (!buf) {
+        (void) fs_close(current_proc->pid, fd);
+        return -1;
+    }
+
+    size_t total = 0;
+    int ret = -1;
+    while (1) {
+        if (total >= EXEC_IMAGE_MAX_SIZE) {
+            goto out;
+        }
+        size_t remain = EXEC_IMAGE_MAX_SIZE - total;
+        int n = fs_read(current_proc->pid, fd, (uint8_t *) buf + total, remain);
+        if (n < 0) {
+            goto out;
+        }
+        if (n == 0) {
+            break;
+        }
+        total += (size_t) n;
+    }
+    if (total == 0) {
+        goto out;
+    }
+
+    *image_out = buf;
+    *size_out = total;
+    *pages_out = pages;
+    ret = 0;
+
+out:
+    (void) fs_close(current_proc->pid, fd);
+    if (ret < 0) {
+        free_pages((paddr_t) buf, pages);
+    }
+    return ret;
+}
+
+static int exec_from_path(const char *path,
+                          int argc,
+                          const char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN]) {
+    if (!path) {
+        return -1;
+    }
+
+    char proc_name[PROC_NAME_MAX];
+    if (basename_from_path(path, proc_name) < 0) {
+        return -1;
+    }
+
+    void *image = NULL;
+    size_t image_size = 0;
+    uint32_t pages = 0;
+    if (load_exec_image_from_path(path, &image, &image_size, &pages) < 0) {
+        return -1;
+    }
+
+    int ret = process_exec(image, image_size, proc_name, argc, argv);
+    free_pages((paddr_t) image, pages);
+    return ret;
+}
+
+static int copy_user_path_safe(const char *user_path, char out_path[EXEC_PATH_MAX]) {
+    if (!user_path || !out_path) {
+        return -1;
+    }
+    if (copyinstr(out_path, user_path, EXEC_PATH_MAX) < 0) {
+        return -1;
+    }
+    if (out_path[0] != '/') {
+        return -1;
+    }
+    return 0;
+}
+
 
 static int write_user_ps_info(struct ps_info *user_ptr, const struct process *proc) {
     if (!user_ptr || !proc) {
@@ -136,6 +249,7 @@ static int write_user_ps_info(struct ps_info *user_ptr, const struct process *pr
     kbuf.parent_pid = proc->parent_pid;
     kbuf.state = proc->state;
     kbuf.wait_reason = proc->wait_reason;
+    kbuf.exit_code = proc->exit_code;
     strcpy_s(kbuf.name, PROC_NAME_MAX, proc->name);
     kbuf.argc = proc->exec_argc;
     memcpy(&kbuf.argv, proc->exec_argv, PROC_EXEC_ARG_LEN * PROC_EXEC_ARGV_MAX);
@@ -147,10 +261,11 @@ static int write_user_ps_info(struct ps_info *user_ptr, const struct process *pr
 }
 
 void syscall_handle_exit(struct trap_frame *f) {
-    (void) f;
+    int status = (int) f->a0;
 
     // Treat pid=1 as init process. When init exits, shut down kernel.
     if (current_proc && current_proc == init_proc) {
+        current_proc->exit_code = status;
         current_proc->state = PROC_EXITED;
         current_proc->wait_reason = PROC_WAIT_NONE;
         current_proc->wait_pid = -1;
@@ -161,6 +276,7 @@ void syscall_handle_exit(struct trap_frame *f) {
     }
 
     orphan_children(current_proc->pid);
+    current_proc->exit_code = status;
     current_proc->state = PROC_EXITED;
     current_proc->wait_reason = PROC_WAIT_NONE;
     current_proc->wait_pid = -1;
@@ -195,6 +311,8 @@ void syscall_handle_clone(struct trap_frame *f) {
         f->a0 = -1;
         return;
     }
+    (void) image;
+    (void) image_size;
 
     struct process *proc = create_process(image, image_size, name);
     if (proc == NULL) {
@@ -207,7 +325,8 @@ void syscall_handle_clone(struct trap_frame *f) {
 
 void syscall_handle_waitpid(struct trap_frame *f) {
     int target_pid = (int) f->a0;
-    int options = (int) f->a1;
+    int *status_ptr = (int *) f->a1;
+    int options = (int) f->a2;
     if (target_pid <= 0 && target_pid != -1) {
         f->a0 = -1;
         return;
@@ -217,7 +336,15 @@ void syscall_handle_waitpid(struct trap_frame *f) {
         return;
     }
 
-    f->a0 = wait_for_child_exit(current_proc->pid, target_pid, options);
+    int exit_status = 0;
+    int waited_pid = wait_for_child_exit(current_proc->pid, target_pid, options, &exit_status);
+    if (waited_pid > 0 && status_ptr) {
+        if (copyout(status_ptr, &exit_status, sizeof(exit_status)) < 0) {
+            f->a0 = -1;
+            return;
+        }
+    }
+    f->a0 = waited_pid;
 }
 
 void syscall_handle_kill(struct trap_frame *f) {
@@ -242,7 +369,10 @@ void syscall_handle_exec(struct trap_frame *f) {
         return;
     }
 
-    int ret = process_exec(image, image_size, name, 0, NULL);
+    char path[EXEC_PATH_MAX];
+    strcpy_s(path, sizeof(path), "/bin/");
+    strcat_s(path, sizeof(path), name);
+    int ret = exec_from_path(path, 0, NULL);
     f->a0 = (ret < 0) ? -1 : 0;
 }
 
@@ -290,6 +420,8 @@ void syscall_handle_execv(struct trap_frame *f) {
         f->a0 = -1;
         return;
     }
+    (void) image;
+    (void) image_size;
 
     int argc = 0;
     char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN];
@@ -298,7 +430,39 @@ void syscall_handle_execv(struct trap_frame *f) {
         return;
     }
 
-    int ret = process_exec(image, image_size, name, argc, argv);
+    char path[EXEC_PATH_MAX];
+    strcpy_s(path, sizeof(path), "/bin/");
+    strcat_s(path, sizeof(path), name);
+    int ret = exec_from_path(path, argc, argv);
+    f->a0 = (ret < 0) ? -1 : 0;
+}
+
+void syscall_handle_exec_path(struct trap_frame *f) {
+    char path[EXEC_PATH_MAX];
+    if (copy_user_path_safe((const char *) f->a0, path) < 0) {
+        f->a0 = -1;
+        return;
+    }
+
+    int ret = exec_from_path(path, 0, NULL);
+    f->a0 = (ret < 0) ? -1 : 0;
+}
+
+void syscall_handle_execv_path(struct trap_frame *f) {
+    char path[EXEC_PATH_MAX];
+    if (copy_user_path_safe((const char *) f->a0, path) < 0) {
+        f->a0 = -1;
+        return;
+    }
+
+    int argc = 0;
+    char argv[PROC_EXEC_ARGV_MAX][PROC_EXEC_ARG_LEN];
+    if (copy_user_argv_safe((const char *const *) f->a1, &argc, argv) < 0) {
+        f->a0 = -1;
+        return;
+    }
+
+    int ret = exec_from_path(path, argc, argv);
     f->a0 = (ret < 0) ? -1 : 0;
 }
 

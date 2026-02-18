@@ -61,9 +61,13 @@ void handle_trap(struct trap_frame *f) {
             {
                 uint32_t sysno = f->a3;
                 handle_syscall(f);
-                // exec/execv succeeds with f->a0 == 0.
+                // exec-family succeeds with f->a0 == 0.
                 // In that case, restart from the new image entry point.
-                if ((sysno == SYSCALL_EXEC || sysno == SYSCALL_EXECV) && f->a0 == 0) {
+                if ((sysno == SYSCALL_EXEC ||
+                     sysno == SYSCALL_EXECV ||
+                     sysno == SYSCALL_EXEC_PATH ||
+                     sysno == SYSCALL_EXECV_PATH) &&
+                    f->a0 == 0) {
                     user_pc = USER_BASE;
                 } else {
                     user_pc += 4;

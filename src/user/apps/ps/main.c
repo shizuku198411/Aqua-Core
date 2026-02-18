@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
     (void) argc;
     (void) argv;
 
-    printf("PID\tPPID\tSTATE\tREASON\tCMD\n");
+    printf("PID\tPPID\tSTATE\tREASON\tEXIT\tCMD\n");
     for (int i = 1; i < PROCS_MAX; i++) {
         struct ps_info info;
         int ret = ps(i, &info);
@@ -75,13 +75,15 @@ int main(int argc, char **argv) {
 
         char args[PROC_EXEC_ARGV_MAX * (PROC_EXEC_ARG_LEN + 1)];
         build_args_string(&info, args, sizeof(args));
+        const char *cmd = (args[0] != '\0') ? args : info.name;
 
-        printf("%d\t%d\t%s\t%s\t%s\n",
+        printf("%d\t%d\t%s\t%s\t%d\t%s\n",
                info.pid,
                info.parent_pid,
                proc_state_to_string(info.state),
                proc_wait_reason_to_string(info.wait_reason),
-               args);
+               info.exit_code,
+               cmd);
     }
     return 0;
 }

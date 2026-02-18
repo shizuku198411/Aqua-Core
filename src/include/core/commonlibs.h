@@ -5,7 +5,7 @@
 // functions
 void putchar(char ch);
 long getchar(void);
-void exit(void);
+void exit(int status);
 
 void printf(const char *fmt, ...);
 void *memset(void *buf, char c, size_t n);
