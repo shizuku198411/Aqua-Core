@@ -142,6 +142,8 @@ def run_tests(h: Harness):
     run_cmd_case("cat_app", "cat /tmp/itest_dir/file1", [b"hello"])
     run_cmd_case("rm_app", "rm /tmp/itest_dir/file1", [])
     run_cmd_case("rmdir_app", "rmdir /tmp/itest_dir", [])
+    run_cmd_case("procfs_list", "ls /proc", [b"1/"])
+    run_cmd_case("procfs_status", "cat /proc/1/status", [b"pid:\t1", b"name:\tshell"])
     run_cmd_case("ps_app", "ps", [b"PID\tPPID\tSTATE\tREASON\tEXIT\tCMD"])
     run_cmd_case("bitmap_app", "bitmap", [b"bitmap: total="])
     run_cmd_case("kill_app", "kill 0", [b"kill failed", b"invalid pid specified"])

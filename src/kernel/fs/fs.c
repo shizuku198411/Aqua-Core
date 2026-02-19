@@ -4,14 +4,20 @@
 #include "core/commonlibs.h"
 #include "fs/blockdev.h"
 #include "net/net.h"
+#include "fs_private.h"
 
 extern void syscall_handle_getchar(struct trap_frame *f);
 
 #define VFS_MOUNT_MAX 4
-#define PFS_MAGIC 0x50465331u
 #define APPFS_MAGIC 0x41504653u
 #define APPFS_START_BLOCK 192u
 #define APPFS_MAX_ENTRIES 32
+#define PFS_MAGIC 0x50465331u
+
+struct pfs_image {
+    uint32_t magic;
+    struct fs_node nodes[FS_MAX_NODES];
+};
 
 struct vfs_fd {
     int used;
@@ -32,38 +38,6 @@ static struct vfs_fd fd_table[PROCS_MAX][FS_FD_MAX];
 #define FD_BACKEND_NET     2
 #define FD_BACKEND_APPIMG  3
 
-struct fs_node {
-    int used;
-    int type;
-    int parent;
-    char name[FS_NAME_MAX];
-    uint32_t size;
-    uint8_t data[FS_FILE_MAX_SIZE];
-};
-
-struct nodefs {
-    int mount_idx;
-    int persistent;
-    uint8_t dirty_blocks[(BLOCKDEV_BLOCK_COUNT + 7) / 8];
-    int dirty_any;
-    struct fs_node nodes[FS_MAX_NODES];
-};
-
-struct pfs_image {
-    uint32_t magic;
-    struct fs_node nodes[FS_MAX_NODES];
-};
-
-struct vfs_ops {
-    int (*open)(void *ctx, const char *path, int flags, int *node_out, uint32_t *offset_out);
-    int (*read)(void *ctx, int node, uint32_t *offset, void *buf, size_t size);
-    int (*write)(void *ctx, int node, uint32_t *offset, const void *buf, size_t size);
-    int (*mkdir)(void *ctx, const char *path);
-    int (*readdir)(void *ctx, const char *path, int index, struct fs_dirent *out);
-    int (*unlink)(void *ctx, const char *path);
-    int (*rmdir)(void *ctx, const char *path);
-};
-
 struct vfs_mount {
     int used;
     char path[FS_PATH_MAX];
@@ -76,7 +50,6 @@ static struct vfs_mount mounts[VFS_MOUNT_MAX];
 static struct nodefs rootfs;
 static struct nodefs tmpfs;
 static struct nodefs procfs;
-static struct pfs_image pfs_work_img;
 
 struct appfs_header_disk {
     uint32_t magic;
@@ -256,122 +229,6 @@ static int next_component(const char *path, int *pos, char *out_name) {
     return 1;
 }
 
-static int pfs_block_count(void) {
-    return (int) ((sizeof(struct pfs_image) + BLOCKDEV_BLOCK_SIZE - 1) / BLOCKDEV_BLOCK_SIZE);
-}
-
-static int pfs_dirty_test(struct nodefs *fs, int block_idx) {
-    if (!fs || block_idx < 0 || block_idx >= BLOCKDEV_BLOCK_COUNT) {
-        return 0;
-    }
-    return (fs->dirty_blocks[block_idx / 8] >> (block_idx % 8)) & 1;
-}
-
-static void pfs_dirty_set(struct nodefs *fs, int block_idx) {
-    if (!fs || block_idx < 0 || block_idx >= BLOCKDEV_BLOCK_COUNT) {
-        return;
-    }
-    fs->dirty_blocks[block_idx / 8] |= (uint8_t) (1u << (block_idx % 8));
-    fs->dirty_any = 1;
-}
-
-static void pfs_mark_dirty_range(struct nodefs *fs, uint32_t off, uint32_t len) {
-    if (!fs || len == 0) {
-        return;
-    }
-
-    uint32_t end = off + len;
-    uint32_t first = off / BLOCKDEV_BLOCK_SIZE;
-    uint32_t last = (end - 1) / BLOCKDEV_BLOCK_SIZE;
-    for (uint32_t b = first; b <= last; b++) {
-        pfs_dirty_set(fs, (int) b);
-    }
-}
-
-static void pfs_mark_dirty_all(struct nodefs *fs) {
-    int blocks = pfs_block_count();
-    for (int i = 0; i < blocks; i++) {
-        pfs_dirty_set(fs, i);
-    }
-}
-
-static void pfs_mark_dirty_node(struct nodefs *fs, int node_idx) {
-    if (!fs || node_idx < 0 || node_idx >= FS_MAX_NODES) {
-        return;
-    }
-
-    uint32_t node_off = (uint32_t) offsetof(struct pfs_image, nodes) +
-                        (uint32_t) node_idx * (uint32_t) sizeof(struct fs_node);
-    pfs_mark_dirty_range(fs, node_off, (uint32_t) sizeof(struct fs_node));
-}
-
-static void pfs_mark_dirty_node_data(struct nodefs *fs, int node_idx, uint32_t data_off, uint32_t len) {
-    if (!fs || node_idx < 0 || node_idx >= FS_MAX_NODES || len == 0 || data_off >= FS_FILE_MAX_SIZE) {
-        return;
-    }
-
-    uint32_t clipped = len;
-    if (clipped > FS_FILE_MAX_SIZE - data_off) {
-        clipped = FS_FILE_MAX_SIZE - data_off;
-    }
-    uint32_t off = (uint32_t) offsetof(struct pfs_image, nodes) +
-                   (uint32_t) node_idx * (uint32_t) sizeof(struct fs_node) +
-                   (uint32_t) offsetof(struct fs_node, data) +
-                   data_off;
-    pfs_mark_dirty_range(fs, off, clipped);
-}
-
-static void pfs_mark_dirty_node_size(struct nodefs *fs, int node_idx) {
-    if (!fs || node_idx < 0 || node_idx >= FS_MAX_NODES) {
-        return;
-    }
-    uint32_t off = (uint32_t) offsetof(struct pfs_image, nodes) +
-                   (uint32_t) node_idx * (uint32_t) sizeof(struct fs_node) +
-                   (uint32_t) offsetof(struct fs_node, size);
-    pfs_mark_dirty_range(fs, off, (uint32_t) sizeof(uint32_t));
-}
-
-static int pfs_sync(struct nodefs *fs) {
-    if (!fs->persistent) {
-        return 0;
-    }
-    if (!fs->dirty_any) {
-        return 0;
-    }
-
-    struct pfs_image *img = &pfs_work_img;
-    img->magic = PFS_MAGIC;
-    memcpy(img->nodes, fs->nodes, sizeof(fs->nodes));
-
-    const uint8_t *src = (const uint8_t *) img;
-    uint8_t block[BLOCKDEV_BLOCK_SIZE];
-    int blocks = pfs_block_count();
-
-    if (blocks > BLOCKDEV_BLOCK_COUNT) {
-        return -1;
-    }
-
-    for (int i = 0; i < blocks; i++) {
-        if (!pfs_dirty_test(fs, i)) {
-            continue;
-        }
-        memset(block, 0, sizeof(block));
-        int off = i * BLOCKDEV_BLOCK_SIZE;
-        int remain = (int) sizeof(*img) - off;
-        int copy_len = remain > BLOCKDEV_BLOCK_SIZE ? BLOCKDEV_BLOCK_SIZE : remain;
-        if (copy_len > 0) {
-            memcpy(block, src + off, copy_len);
-        }
-        if (blockdev_write((uint32_t) i, block) < 0) {
-            return -1;
-        }
-        fs->dirty_blocks[i / 8] &= (uint8_t) ~(1u << (i % 8));
-    }
-
-    fs->dirty_any = 0;
-    return 0;
-}
-
 static void nodefs_format(struct nodefs *fs) {
     memset(fs->nodes, 0, sizeof(fs->nodes));
     fs->nodes[0].used = 1;
@@ -382,19 +239,20 @@ static void nodefs_format(struct nodefs *fs) {
 }
 
 static void nodefs_init_instance(struct nodefs *fs, int persistent) {
-    memset(fs, 0, sizeof(*fs));
-    fs->mount_idx = -1;
-    fs->persistent = persistent;
-
     if (!persistent) {
-        nodefs_format(fs);
+        ramfs_init_instance(fs);
         return;
     }
 
+    memset(fs, 0, sizeof(*fs));
+    fs->mount_idx = -1;
+    fs->persistent = 1;
+
+    struct pfs_image pfs_work_img;
     struct pfs_image *img = &pfs_work_img;
     uint8_t *dst = (uint8_t *) img;
     uint8_t block[BLOCKDEV_BLOCK_SIZE];
-    int blocks = pfs_block_count();
+    int blocks = (int) pfs_block_count();
 
     if (blocks > BLOCKDEV_BLOCK_COUNT) {
         PANIC("pfs image too large for blockdev");
@@ -837,9 +695,7 @@ static int vfs_mount(const char *path, const struct vfs_ops *ops, void *ctx) {
             for (int j = 0; j < path_len; j++) {
                 mounts[i].path[j] = path[j];
             }
-
-            ((struct nodefs *) ctx)->mount_idx = i;
-            return 0;
+            return i;
         }
     }
 
@@ -948,12 +804,12 @@ void fs_init(void) {
 
     // /tmp is volatile RAMFS backend.
     printf("     [fs] init tmpfs (volatile ramfs)...");
-    nodefs_init_instance(&tmpfs, 0);
+    ramfs_init_instance(&tmpfs);
     printf("OK\n");
 
-    // /proc is volatile RAMFS backend.
-    printf("     [fs] init procfs (volatile ramfs)...");
-    nodefs_init_instance(&procfs, 0);
+    // /proc is currently volatile procfs backend (ramfs-compatible).
+    printf("     [fs] init procfs (volatile procfs)...");
+    procfs_init_instance(&procfs);
     printf("OK\n");
 
     printf("     [fs] init appfs (/bin on disk image)...");
@@ -965,9 +821,11 @@ void fs_init(void) {
 
     // mount rootfs
     printf("     [fs] mount: rootfs -> / ...");
-    if (vfs_mount("/", &nodefs_ops, &rootfs) < 0) {
+    int root_mount_idx = vfs_mount("/", &nodefs_ops, &rootfs);
+    if (root_mount_idx < 0) {
         PANIC("failed to mount root fs");
     }
+    rootfs.mount_idx = root_mount_idx;
     printf("OK\n");
 
     // mount tmpfs
@@ -978,9 +836,11 @@ void fs_init(void) {
         printf("OK\n");
     }
     printf("     [fs] mount: tmpfs -> /tmp ...");
-    if (vfs_mount("/tmp", &nodefs_ops, &tmpfs) < 0) {
+    int tmp_mount_idx = vfs_mount("/tmp", &nodefs_ops, &tmpfs);
+    if (tmp_mount_idx < 0) {
         PANIC("failed to mount tmpfs");
     }
+    tmpfs.mount_idx = tmp_mount_idx;
     printf("OK\n");
 
     // mount procfs
@@ -991,9 +851,11 @@ void fs_init(void) {
         printf("OK\n");
     }
     printf("     [fs] mount: procfs -> /proc ...");
-    if (vfs_mount("/proc", &nodefs_ops, &procfs) < 0) {
+    int proc_mount_idx = vfs_mount("/proc", &procfs_ops, &procfs);
+    if (proc_mount_idx < 0) {
         PANIC("failed to mount procfs");
     }
+    procfs.mount_idx = proc_mount_idx;
     printf("OK\n");
 
     // Ensure /bin mountpoint-like directory exists in root namespace.
@@ -1328,14 +1190,6 @@ void fs_init_process_stdio(int pid) {
     fd_table[pid][2].used = 1;
     fd_table[pid][2].flags = O_WRONLY;
     fd_table[pid][2].backend_type = FD_BACKEND_CONSOLE;
-}
-
-uint32_t fs_get_pfs_image_blocks(void) {
-    return (uint32_t) pfs_block_count();
-}
-
-uint32_t fs_get_pfs_sync_mode(void) {
-    return KERNEL_PFS_SYNC_MODE_DIRTY;
 }
 
 int fs_get_root_entry(int *mount_idx, int *node_idx) {

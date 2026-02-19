@@ -4,143 +4,139 @@
   <img src="docs/assets/aquacore_logo.png" alt="Project Icon" width="190">
 </p>
 
-AquaCoreは、RISC-V 32bit向けに開発しているマイクロカーネルです。  
-QEMU + OpenSBI 環境での動作を前提に実装しています。
+AquaCore は、RISC-V 32bit (`qemu-system-riscv32`) 上で動作するマイクロカーネルです。  
+現在の実装は、プロセス/トラップ/システムコール/ファイルシステム/ネットワーク/ユーザアプリ実行までを一通り含みます。
 
-<p>
-  <img src="docs/assets/aquacore_terminal.png" alt="terminal">
-</p>
+## 実装機能（現行）
 
-## ビルド/起動
-### 前提
-- `clang` / `lld` / `llvm-objcopy`
+- ブート/トラップ
+- タイマ割り込みとプリエンプティブなスケジューリング
+- プロセス管理（`fork` / `exec_path` / `execv_path` / `exit` / `waitpid` / `kill`）
+- ユーザメモリアクセス保護（`copyin` / `copyout` / `copyinstr` と `SSTATUS_SUM` ラップ）
+- VFS
+- 永続FS: `pfs`（virtio-blk上、dirty block同期）
+- 揮発FS: `ramfs` (`/tmp`)
+- `procfs` (`/proc/<pid>/status`)
+- AppFS（`/bin/*` 実行イメージをディスクからロード）
+- ネットワーク（virtio-net、`/dev/net0`、ping/UDP送信）
+- RTC時刻取得
+
+## 同梱ユーザアプリ
+
+- `shell`, `ps`, `date`, `ls`, `mkdir`, `rmdir`, `touch`, `rm`, `write`, `cat`
+- `kill`, `kernel_info`, `bitmap`, `ipc_rx`, `ping`, `udp_send`, `nslookup`, `echo`
+
+## リポジトリ構成（主要）
+
+- `src/kernel/` カーネル本体
+- `src/user/` ユーザランタイム/ユーザアプリ
+- `src/lib/` 共通ライブラリ
+- `tests/unit/` ホスト実行のunit test
+- `tests/int/` QEMU実行のintegration test
+- `docs/kernel/` カーネル機能ドキュメント
+
+## 必要ツール
+
+- `clang`（RISC-Vターゲット付き）
+- `lld`
+- `llvm-objcopy`
 - `qemu-system-riscv32`
-- `python3`（integration test 実行時に使用）
-- Linux で TAP 利用時は `ip` / `iptables` / `sudo`（必要に応じて）
-- OpenSBIバイナリのリポジトリトップへの設置が必要です  
+- `python3`
+- （TAP/NAT運用時）`ip`, `iptables`, `sudo`
+- OpenSBIバイナリ(リポジトリトップへの設置が必要です)  
   ```
   cd Aqua-Core
   curl -LO https://github.com/qemu/qemu/raw/v8.0.4/pc-bios/opensbi-riscv32-generic-fw_dynamic.bin
   ```
 
-### Makefile
-```bash
-# build (kernel + user apps)
-make
+## ビルド
 
-# run on qemu with TAP network (create ./bin/disk.img when missing)
+```bash
+make build
+```
+
+生成物:
+
+- カーネルELF: `bin/kernel.elf`
+- ディスクイメージ: `bin/disk.img`（`make disk` または `run/start/test-int` で自動作成）
+
+## 実行
+
+### 1. 通常実行（TAPネットワーク）
+
+```bash
 make run
 ```
 
-主要ターゲット:
-
-- `make` or `make build` : ビルド
-- `make start`: QEMU起動
-- `make run` : ビルド + QEMU起動
-- `make run-usernet` : ビルド + QEMU起動（QEMU user-mode net）
-- `make run-tap` : ビルド + QEMU起動（TAP net）
-- `make tap-up` / `make tap-down` : TAPデバイス作成/削除
-- `make nat-up` / `make nat-down` : TAP向けNAT有効化/無効化
-- `make clean` : 生成物削除（disk imageは残す）
-- `make distclean` : 生成物 + `./bin/disk.img` 削除
-
-## テスト実行
+### 2. user-mode networking で実行
 
 ```bash
-# unit test
+make run-usernet
+```
+
+### 3. GDB待ち受けで起動
+
+```bash
+make qemu-debug
+```
+
+## テスト
+
+### Unit test
+
+```bash
 make test-unit
+```
 
-# integration test (QEMU起動)
+- `tests/unit/test_commonlibs.c`
+- `tests/unit/test_user_path.c`
+
+### Integration test (QEMU)
+
+```bash
 make test-int
+```
 
-# unit + integration
+実行スクリプト: `tests/int/run_qemu_tests.py`
+
+### 全テスト
+
+```bash
 make test
 ```
 
-- unit test はケースごとに `[PASS]/[FAIL]` を表示します。
-- integration test もケースごとに `[PASS]/[FAIL]` を表示します。
-- integration 失敗時は `tests/int/last_failure.log` に以下を出力します。
-  - 実行コマンド
-  - エラー内容
-  - ケース履歴（`START/PASS/FAIL`）
-  - QEMU出力末尾
+## Make ターゲット早見
 
-## 現在の実装機能
+- `make build` カーネルとユーザアプリをビルド
+- `make disk` `bin/disk.img` を作成し appfs をパック
+- `make run` QEMU実行（TAP）
+- `make start` `run` と同等（既存運用向けエイリアス）
+- `make run-usernet` usernetでQEMU実行
+- `make qemu-debug` GDB待ち受け付き起動
+- `make test-unit` unit test実行
+- `make test-int` integration test実行
+- `make test` 全テスト実行
+- `make clean` ビルド成果物を削除
+- `make distclean` `clean` + `bin/disk.img` を削除
 
-- ブートストラップ
-  - `stvec` 設定
-  - S-mode trap 入口 (`kernel_entry`) 実装
-  - Supervisor Timer Interrupt 有効化
-- Trap/割り込み
-  - U-mode `ecall` 処理 (syscall)
-  - timer 割り込みでの再スケジュール判定
-  - syscall 引数のユーザメモリアクセス安全化（`copyin` / `copyout` / `copyinstr`）
-- 入力処理
-  - コンソール入力リングバッファ
-  - `getchar` の待機/起床制御（busy loop回避）
-- メモリ管理
-  - ページ単位 bitmap allocator (`alloc_pages` / `free_pages`)
-  - SV32 2段ページテーブル構築とマッピング
-- プロセス管理/スケジューリング
-  - プロセス作成 (`create_process`)
-  - `fork` / `exec` / `execv`（引数付き実行）
-  - タイムスライス付きラウンドロビン (`yield`)
-  - 終了プロセスの回収 (`reap_exited_processes`, `waitpid`)
-  - `kill` / `waitpid`
-- IPC
-  - プロセスごとの単一 mailbox
-  - `ipc_send` / `ipc_recv` による送受信
-- ネットワーク
-  - virtio-net 初期化（MMIO）
-  - ARP 解決
-  - ICMP Echo 送受信（`ping`）
-  - UDP 送信（`udp_send`）
-  - DNS クエリ送信（`nslookup`）
-- ファイルシステム (VFS)
-  - `/` : PFS（virtio-blk上の永続ストレージ）
-  - `/tmp` : RAMFS（揮発ストレージ）
-  - `/proc` : RAMFSベース procfs (`/proc/<pid>/status`)
-  - `ls` / `cat` / `write` / `mkdir` / `rm` などのファイル操作
-  - `dup2` と shell リダイレクト（`<`, `>`）
-- カレントディレクトリ
-  - プロセスごとの `cwd` / `root` 管理
-  - `cd` と相対パス解決（`cat`, `rm`, `write`, `touch`, `mkdir`, `rmdir` など）
-- RTC/時刻
-  - Goldfish RTC ドライバによる現在時刻取得
-  - `gettime` syscall と shell `date` コマンド
-- shell UX
-  - コマンド履歴（保存/復元）
-  - 履歴の上下キー参照
-  - 左右キーでカーソル移動、途中挿入/削除（Backspace/Delete）
-  - Tab 補完（App名）
-- ユーザアプリ
-  - `shell`, `ps`, `date`, `ls`, `mkdir`, `rmdir`, `touch`, `rm`, `write`, `cat`, `kill`, `kernel_info`, `bitmap`, `ping`, `udp_send`, `nslookup`, `ipc_rx`
-  - shell 組み込み: `cd`, `history`, `exit`
-- テスト基盤
-  - host 実行の unit test（`tests/unit`）
-  - QEMU 実行の integration test（`tests/int`）
-  - 各 user app の最低1回実行を含む自動確認
-  - `kernel_info` 出力の数値妥当性チェック
-- カーネル終了
-  - init プロセス終了時の shutdown 処理
+## ネットワーク補助ターゲット（TAP/NAT）
 
-## ドキュメント
+- `make tap-up` / `make tap-down` / `make tap-status`
+- `make nat-up` / `make nat-down` / `make nat-status`
 
-- [Documentation Index](./docs/README.md)
-- [Linker Script](./docs/linker-script.md)
-- [Kernel Bootstrap](./docs/kernel-bootstrap.md)
-- [Trap Handler](./docs/trap-handler.md)
-- [Mode Transition](./docs/mode-transition.md)
-- [Syscall](./docs/syscall.md)
-- [Memory / Process](./docs/memory-process.md)
-- [Process Management](./docs/process-management.md)
-- [Fork / Exec](./docs/fork-exec.md)
-- [Execv Argument Passing](./docs/execv-args.md)
-- [Shell Redirection](./docs/shell-redirection.md)
-- [VFS / RAMFS / VirtIO Block Storage](./docs/vfs.md)
-- [Procfs (`/proc` on RAMFS)](./docs/procfs.md)
-- [RTC / Time Syscall](./docs/rtc.md)
-- [Memory Map](./docs/memory-map.md)
-- [SV32 Paging](./docs/sv32.md)
-- [Page Table Mapping Path](./docs/page-table-path.md)
-- [Kernel Operation Walkthrough](./docs/kernel-operation-walkthrough.md)
+環境変数で変更可能:
+
+- `TAP_DEV`（default: `tap0`）
+- `TAP_ADDR`（default: `10.0.2.1/24`）
+- `TAP_CIDR`（default: `10.0.2.0/24`）
+- `WAN_DEV`（default: `wlan0`）
+
+## 関連ドキュメント
+
+- カーネル機能ドキュメント: `docs/kernel/README.md`
+- 実行フロー（AppFS）: `docs/appfs-exec-flow.md`
+- `execv` 引数関連: `docs/execv-args.md`
+
+## ライセンス
+
+`LICENSE` を参照してください。
