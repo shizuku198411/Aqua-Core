@@ -177,3 +177,15 @@ int sendto(int sockfd, const void *buf, int len, const struct socket_addr_in *to
 int recvfrom(int sockfd, void *buf, int len, struct socket_addr_in *from, uint32_t *fromlen) {
     return syscall6(SYSCALL_RECVFROM, sockfd, (int) buf, len, (int) from, (int) fromlen, 0);
 }
+
+int connect(int sockfd, const struct socket_addr_in *addr, uint32_t addrlen) {
+    return syscall(SYSCALL_CONNECT, sockfd, (int) addr, (int) addrlen);
+}
+
+int send(int sockfd, const void *buf, int len) {
+    return syscall(SYSCALL_SEND, sockfd, (int) buf, len);
+}
+
+int recv(int sockfd, void *buf, int len) {
+    return syscall(SYSCALL_RECV, sockfd, (int) buf, len);
+}

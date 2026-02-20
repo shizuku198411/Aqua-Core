@@ -38,4 +38,7 @@ int socket(int domain, int type, int protocol);
 int bind(int sockfd, const struct socket_addr_in *addr, uint32_t addrlen);
 int sendto(int sockfd, const void *buf, int len, const struct socket_addr_in *to, uint32_t tolen);
 int recvfrom(int sockfd, void *buf, int len, struct socket_addr_in *from, uint32_t *fromlen);
+int connect(int sockfd, const struct socket_addr_in *addr, uint32_t addrlen);
+int send(int sockfd, const void *buf, int len);
+int recv(int sockfd, void *buf, int len);
 __attribute__((noreturn)) void exit(int status);

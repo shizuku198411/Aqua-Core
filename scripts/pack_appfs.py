@@ -29,6 +29,7 @@ APPS = [
     "nslookup",
     "echo",
     "edit",
+    "curl",
 ]
 
 

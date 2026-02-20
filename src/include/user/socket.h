@@ -3,7 +3,9 @@
 #include "core/stdtypes.h"
 
 #define AF_INET         2
+#define SOCK_STREAM     1
 #define SOCK_DGRAM      2
+#define IPPROTO_TCP     6
 #define IPPROTO_UDP     17
 
 struct socket_addr_in {

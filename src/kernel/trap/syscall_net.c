@@ -2,6 +2,7 @@
 #include "kernel/kernel.h"
 #include "net/net.h"
 #include "net/udp.h"
+#include "net/tcp.h"
 #include "proc/process.h"
 #include "kernel/page_access.h"
 #include "user/socket.h"
@@ -16,7 +17,12 @@
 
 struct kernel_socket {
     int used;
+    int type;
     uint16_t local_port; // host order
+    uint16_t remote_port; // host order
+    uint32_t remote_ip;
+    int connected;
+    int tcp_conn_id;
 };
 
 static struct kernel_socket socket_table[PROCS_MAX][SOCKET_MAX_PER_PROC];
@@ -78,16 +84,30 @@ int syscall_net_close_socket_fd(int sockfd) {
     if (sidx < 0 || !socket_table[pid_idx][sidx].used) {
         return -1;
     }
+    if (socket_table[pid_idx][sidx].type == SOCK_STREAM
+        && socket_table[pid_idx][sidx].tcp_conn_id >= 0) {
+        (void) net_tcp_close(socket_table[pid_idx][sidx].tcp_conn_id);
+    }
     socket_table[pid_idx][sidx].used = 0;
+    socket_table[pid_idx][sidx].type = 0;
     socket_table[pid_idx][sidx].local_port = 0;
+    socket_table[pid_idx][sidx].remote_port = 0;
+    socket_table[pid_idx][sidx].remote_ip = 0;
+    socket_table[pid_idx][sidx].connected = 0;
+    socket_table[pid_idx][sidx].tcp_conn_id = -1;
     return 0;
 }
 
-static int alloc_socket_fd(int pid_idx, uint16_t local_port) {
+static int alloc_socket_fd(int pid_idx, int type, uint16_t local_port) {
     for (int i = 0; i < SOCKET_MAX_PER_PROC; i++) {
         if (!socket_table[pid_idx][i].used) {
             socket_table[pid_idx][i].used = 1;
+            socket_table[pid_idx][i].type = type;
             socket_table[pid_idx][i].local_port = local_port;
+            socket_table[pid_idx][i].remote_port = 0;
+            socket_table[pid_idx][i].remote_ip = 0;
+            socket_table[pid_idx][i].connected = 0;
+            socket_table[pid_idx][i].tcp_conn_id = -1;
             return SOCKET_FD_BASE + i;
         }
     }
@@ -219,11 +239,21 @@ void syscall_handle_socket(struct trap_frame *f) {
         f->a0 = -1;
         return;
     }
-    if (domain != AF_INET || type != SOCK_DGRAM) {
+    if (domain != AF_INET) {
         f->a0 = -1;
         return;
     }
-    if (!(protocol == 0 || protocol == IPPROTO_UDP)) {
+    if (type == SOCK_DGRAM) {
+        if (!(protocol == 0 || protocol == IPPROTO_UDP)) {
+            f->a0 = -1;
+            return;
+        }
+    } else if (type == SOCK_STREAM) {
+        if (!(protocol == 0 || protocol == IPPROTO_TCP)) {
+            f->a0 = -1;
+            return;
+        }
+    } else {
         f->a0 = -1;
         return;
     }
@@ -234,7 +264,7 @@ void syscall_handle_socket(struct trap_frame *f) {
         return;
     }
 
-    f->a0 = alloc_socket_fd(pid_idx, port);
+    f->a0 = alloc_socket_fd(pid_idx, type, port);
 }
 
 void syscall_handle_bind(struct trap_frame *f) {
@@ -248,6 +278,11 @@ void syscall_handle_bind(struct trap_frame *f) {
     }
     int sidx = socket_idx_from_fd(sockfd);
     if (sidx < 0 || !socket_table[pid_idx][sidx].used) {
+        f->a0 = -1;
+        return;
+    }
+    if (socket_table[pid_idx][sidx].type != SOCK_DGRAM
+        && socket_table[pid_idx][sidx].type != SOCK_STREAM) {
         f->a0 = -1;
         return;
     }
@@ -301,6 +336,14 @@ void syscall_handle_sendto(struct trap_frame *f) {
 
     int sidx = socket_idx_from_fd(sockfd);
     if (sidx < 0 || !socket_table[pid_idx][sidx].used) {
+        f->a0 = -1;
+        return;
+    }
+    if (socket_table[pid_idx][sidx].type != SOCK_DGRAM) {
+        f->a0 = -1;
+        return;
+    }
+    if (socket_table[pid_idx][sidx].type != SOCK_DGRAM) {
         f->a0 = -1;
         return;
     }
@@ -410,4 +453,173 @@ void syscall_handle_recvfrom(struct trap_frame *f) {
     }
 
     f->a0 = -1;
+}
+
+void syscall_handle_connect(struct trap_frame *f) {
+    int sockfd = (int) f->a0;
+    const struct socket_addr_in *user_addr = (const struct socket_addr_in *) f->a1;
+    uint32_t addrlen = (uint32_t) f->a2;
+    int pid_idx = socket_pid_index();
+    if (pid_idx < 0) {
+        f->a0 = -1;
+        return;
+    }
+
+    int sidx = socket_idx_from_fd(sockfd);
+    if (sidx < 0 || !socket_table[pid_idx][sidx].used) {
+        f->a0 = -1;
+        return;
+    }
+    if (socket_table[pid_idx][sidx].type != SOCK_STREAM) {
+        f->a0 = -1;
+        return;
+    }
+    if (!user_addr || addrlen < (uint32_t) sizeof(struct socket_addr_in)) {
+        f->a0 = -1;
+        return;
+    }
+
+    struct socket_addr_in addr;
+    if (copyin(&addr, user_addr, sizeof(addr)) < 0) {
+        f->a0 = -1;
+        return;
+    }
+    if (addr.sin_family != AF_INET) {
+        f->a0 = -1;
+        return;
+    }
+
+    uint16_t dport = read_be16((const uint8_t *) &addr.sin_port);
+    if (dport == 0u || addr.sin_addr == 0u) {
+        f->a0 = -1;
+        return;
+    }
+
+    if (socket_table[pid_idx][sidx].local_port == 0u) {
+        uint16_t p = alloc_ephemeral_port(pid_idx);
+        if (p == 0u) {
+            f->a0 = -1;
+            return;
+        }
+        socket_table[pid_idx][sidx].local_port = p;
+    }
+
+    int conn_id = net_tcp_connect(addr.sin_addr, socket_table[pid_idx][sidx].local_port, dport);
+    if (conn_id < 0) {
+        f->a0 = -1;
+        return;
+    }
+
+    socket_table[pid_idx][sidx].remote_ip = addr.sin_addr;
+    socket_table[pid_idx][sidx].remote_port = dport;
+    socket_table[pid_idx][sidx].tcp_conn_id = conn_id;
+    socket_table[pid_idx][sidx].connected = 1;
+    f->a0 = 0;
+}
+
+void syscall_handle_send(struct trap_frame *f) {
+    int sockfd = (int) f->a0;
+    const void *user_buf = (const void *) f->a1;
+    size_t len = (size_t) f->a2;
+    int pid_idx = socket_pid_index();
+    if (pid_idx < 0) {
+        f->a0 = -1;
+        return;
+    }
+
+    int sidx = socket_idx_from_fd(sockfd);
+    if (sidx < 0 || !socket_table[pid_idx][sidx].used) {
+        f->a0 = -1;
+        return;
+    }
+    if (socket_table[pid_idx][sidx].type != SOCK_STREAM
+        || !socket_table[pid_idx][sidx].connected
+        || socket_table[pid_idx][sidx].tcp_conn_id < 0) {
+        f->a0 = -1;
+        return;
+    }
+    if (!user_buf && len > 0u) {
+        f->a0 = -1;
+        return;
+    }
+    if (len == 0u) {
+        f->a0 = 0;
+        return;
+    }
+
+    uint8_t kbuf[UDP_PAYLOAD_MAX];
+    size_t done = 0;
+    while (done < len) {
+        size_t chunk = len - done;
+        if (chunk > sizeof(kbuf)) {
+            chunk = sizeof(kbuf);
+        }
+        if (copyin(kbuf, (const uint8_t *) user_buf + done, chunk) < 0) {
+            f->a0 = (done > 0u) ? (int) done : -1;
+            return;
+        }
+        int n = net_tcp_send(socket_table[pid_idx][sidx].tcp_conn_id, kbuf, chunk);
+        if (n <= 0) {
+            f->a0 = (done > 0u) ? (int) done : -1;
+            return;
+        }
+        done += (size_t) n;
+        if ((size_t) n < chunk) {
+            break;
+        }
+    }
+
+    f->a0 = (int) done;
+}
+
+void syscall_handle_recv(struct trap_frame *f) {
+    int sockfd = (int) f->a0;
+    void *user_buf = (void *) f->a1;
+    size_t len = (size_t) f->a2;
+    int pid_idx = socket_pid_index();
+    if (pid_idx < 0) {
+        f->a0 = -1;
+        return;
+    }
+
+    int sidx = socket_idx_from_fd(sockfd);
+    if (sidx < 0 || !socket_table[pid_idx][sidx].used) {
+        f->a0 = -1;
+        return;
+    }
+    if (socket_table[pid_idx][sidx].type != SOCK_STREAM
+        || !socket_table[pid_idx][sidx].connected
+        || socket_table[pid_idx][sidx].tcp_conn_id < 0) {
+        f->a0 = -1;
+        return;
+    }
+    if (!user_buf && len > 0u) {
+        f->a0 = -1;
+        return;
+    }
+    if (len == 0u) {
+        f->a0 = 0;
+        return;
+    }
+
+    uint8_t kbuf[UDP_PAYLOAD_MAX];
+    size_t chunk = len;
+    if (chunk > sizeof(kbuf)) {
+        chunk = sizeof(kbuf);
+    }
+
+    int n = net_tcp_recv(socket_table[pid_idx][sidx].tcp_conn_id, kbuf, chunk);
+    if (n < 0) {
+        f->a0 = -1;
+        return;
+    }
+    if (n == 0) {
+        f->a0 = 0;
+        return;
+    }
+    if (copyout(user_buf, kbuf, (size_t) n) < 0) {
+        f->a0 = -1;
+        return;
+    }
+    f->a0 = n;
 }

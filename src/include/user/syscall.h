@@ -35,6 +35,9 @@
 #define SYSCALL_SENDTO      34
 #define SYSCALL_RECVFROM    35
 #define SYSCALL_BIND        36
+#define SYSCALL_CONNECT     37
+#define SYSCALL_SEND        38
+#define SYSCALL_RECV        39
 
 
 void handle_syscall(struct trap_frame *f);

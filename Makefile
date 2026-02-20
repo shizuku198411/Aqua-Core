@@ -110,6 +110,10 @@ ECHO_OBJ := $(OBJ_DIR)/echo.bin.o
 EDIT_ELF := $(BIN_DIR)/edit.elf
 EDIT_BIN := $(BIN_DIR)/edit.bin
 EDIT_OBJ := $(OBJ_DIR)/edit.bin.o
+# curl
+CURL_ELF := $(BIN_DIR)/curl.elf
+CURL_BIN := $(BIN_DIR)/curl.bin
+CURL_OBJ := $(OBJ_DIR)/curl.bin.o
 
 # test
 TEST_BIN_DIR := $(BIN_DIR)/tests
@@ -378,11 +382,22 @@ $(EDIT_BIN): $(EDIT_ELF)
 $(EDIT_OBJ): $(EDIT_BIN)
 	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(EDIT_BIN) $@
 
+# curl
+$(CURL_ELF): dirs
+	$(CC) $(CFLAGS) -Wl,-T$(USER_SRC_DIR)/user.ld -Wl,-Map=$(MAP_DIR)/curl.map -o $@ \
+		$(USER_RUNTIME_DIR)/*.c $(USER_APPS_DIR)/curl/*.c $(LIB_SRC_DIR)/commonlibs.c
+
+$(CURL_BIN): $(CURL_ELF)
+	$(OBJCOPY) --set-section-flags .bss=alloc,contents -O binary $< $@
+
+$(CURL_OBJ): $(CURL_BIN)
+	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(CURL_BIN) $@
+
 
 $(KERNEL_ELF): $(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 	$(MKDIR_OBJ) $(RMDIR_OBJ) $(TOUCH_OBJ) $(RM_OBJ) $(WRITE_OBJ) $(CAT_OBJ) \
 	$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ) $(PING_OBJ) $(UDP_SEND_OBJ) $(NSLOOKUP_OBJ) \
-	$(ECHO_OBJ) $(EDIT_OBJ)
+	$(ECHO_OBJ) $(EDIT_OBJ) $(CURL_OBJ)
 	$(CC) $(CFLAGS) -Wl,-T$(KERNEL_SRC_DIR)/kernel.ld -Wl,-Map=$(MAP_DIR)/kernel.map -o $@ \
 		$(LIB_SRC_DIR)/commonlibs.c \
 		$(KERNEL_SRC_DIR)/kernel.c \
@@ -397,7 +412,7 @@ $(KERNEL_ELF): $(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 			$(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 			$(MKDIR_OBJ) $(RMDIR_OBJ) $(TOUCH_OBJ) $(RM_OBJ) $(WRITE_OBJ) $(CAT_OBJ) \
 			$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ) $(PING_OBJ) $(UDP_SEND_OBJ) $(NSLOOKUP_OBJ) \
-			$(ECHO_OBJ) $(EDIT_OBJ)
+			$(ECHO_OBJ) $(EDIT_OBJ) $(CURL_OBJ)
 
 disk: dirs
 	@if [ ! -f "$(DISK_IMG)" ]; then \
@@ -563,7 +578,8 @@ clean:
 		$(UDP_SEND_ELF) $(UDP_SEND_BIN) $(UDP_SEND_OBJ) \
 		$(NSLOOKUP_ELF) $(NSLOOKUP_BIN) $(NSLOOKUP_OBJ) \
 		$(ECHO_ELF) $(ECHO_BIN) $(ECHO_OBJ) \
-		$(EDIT_ELF) $(EDIT_BIN) $(EDIT_OBJ)
+		$(EDIT_ELF) $(EDIT_BIN) $(EDIT_OBJ) \
+		$(CURL_ELF) $(CURL_BIN) $(CURL_OBJ)
 	rm -f $(MAP_DIR)/*.map
 
 distclean: clean
