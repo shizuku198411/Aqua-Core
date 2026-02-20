@@ -9,7 +9,7 @@
 #include "user/syscall.h"
 #include "fs/fs.h"
 
-#define NUM_BUILTIN_CMD 6
+#define NUM_BUILTIN_CMD 7
 // shell built-in command
 const char builtin_cmd[NUM_BUILTIN_CMD][FS_NAME_MAX] = {
     "history",
@@ -17,10 +17,12 @@ const char builtin_cmd[NUM_BUILTIN_CMD][FS_NAME_MAX] = {
     "cd",
     "net_send_raw",
     "net_recv_raw",
+    "sockudp",
     "exit"
 };
 
 char shell_app_names[FS_MAX_NODES][FS_NAME_MAX];
+char current_dir_list[FS_MAX_NODES][FS_NAME_MAX];
 
 static int min_int(int a, int b) {
     return (a < b) ? a : b;
@@ -34,12 +36,53 @@ static int first_token_end(const char *s, int len) {
     return i;
 }
 
+static int token_start_from_cursor(const char *s, int cursor) {
+    int i = cursor;
+    while (i > 0 && s[i - 1] != ' ' && s[i - 1] != '\t') {
+        i--;
+    }
+    return i;
+}
+
 static int common_prefix_len(const char *a, const char *b) {
     int i = 0;
     while (a[i] != '\0' && b[i] != '\0' && a[i] == b[i]) {
         i++;
     }
     return i;
+}
+
+static void replace_token_range(char *cmdline,
+                                int *len,
+                                int *cursor,
+                                int token_start,
+                                int token_end,
+                                const char *new_token,
+                                int new_token_len) {
+    int old_len = *len;
+    int old_token_len = token_end - token_start;
+    int new_len = old_len - old_token_len + new_token_len;
+    if (new_len >= CMDLINE_MAX) {
+        return;
+    }
+
+    if (new_token_len > old_token_len) {
+        for (int i = old_len; i >= token_end; i--) {
+            cmdline[i + (new_token_len - old_token_len)] = cmdline[i];
+        }
+    } else if (new_token_len < old_token_len) {
+        for (int i = token_end; i <= old_len; i++) {
+            cmdline[i - (old_token_len - new_token_len)] = cmdline[i];
+        }
+    }
+
+    for (int i = 0; i < new_token_len; i++) {
+        cmdline[token_start + i] = new_token[i];
+    }
+
+    *len = new_len;
+    *cursor = token_start + new_token_len;
+    cmdline[*len] = '\0';
 }
 
 static void replace_first_token(char *cmdline,
@@ -145,14 +188,115 @@ static int complete_app_name(char *cmdline, int *len, int *cursor) {
     return 0;
 }
 
+static void read_current_dir(const char *cwd) {
+    // clear
+    memset(current_dir_list, 0, FS_MAX_NODES * FS_NAME_MAX);
+    struct fs_dirent ent;
+    for (int i = 0;; i++) {
+        if (fs_readdir(cwd, i, &ent) < 0) {
+            break;
+        }
+        strcpy_s(current_dir_list[i], FS_NAME_MAX, ent.name);
+    }
+}
+
+static int complete_dir_name(char *cmdline, int *len, int *cursor, const char *cwd) {
+    if (!cmdline || !len || !cursor) {
+        return 0;
+    }
+
+    read_current_dir(cwd);
+
+    if (*cursor > *len) {
+        return 0;
+    }
+
+    int token_start = token_start_from_cursor(cmdline, *cursor);
+    int token_end = *cursor;
+    while (token_end < *len && cmdline[token_end] != ' ' && cmdline[token_end] != '\t') {
+        token_end++;
+    }
+
+    int prefix_len = *cursor - token_start;
+    int matches[sizeof(current_dir_list) / sizeof(current_dir_list[0])];
+    int match_count = 0;
+    int dir_count = (int)(sizeof(current_dir_list) / sizeof(current_dir_list[0]));
+
+    for (int i = 0; i < dir_count; i++) {
+        if (current_dir_list[i][0] == '\0') {
+            continue;
+        }
+        int same = 1;
+        for (int j = 0; j < prefix_len; j++) {
+            if (current_dir_list[i][j] != cmdline[token_start + j]) {
+                same = 0;
+                break;
+            }
+        }
+        if (same) {
+            matches[match_count++] = i;
+        }
+    }
+
+    if (match_count == 0) {
+        return 0;
+    }
+
+    if (match_count == 1) {
+        const char *m = current_dir_list[matches[0]];
+        int mlen = str_len(m);
+        replace_token_range(cmdline, len, cursor, token_start, token_end, m, mlen);
+        return 1;
+    }
+
+    int lcp = str_len(current_dir_list[matches[0]]);
+    for (int i = 1; i < match_count; i++) {
+        lcp = min_int(lcp, common_prefix_len(current_dir_list[matches[0]],
+                                             current_dir_list[matches[i]]));
+    }
+    if (lcp > prefix_len) {
+        replace_token_range(cmdline, len, cursor, token_start, token_end, current_dir_list[matches[0]], lcp);
+        return 1;
+    }
+
+    return 0;
+}
+
+static int init_process(void) {
+    for (int i = 1; i < PROCS_MAX; i++) {
+        struct ps_info info;
+        memset(&info, 0, sizeof(info));
+        if (ps(i, &info) < 0) {
+            continue;
+        }
+        info.name[PROC_NAME_MAX - 1] = '\0';
+        if (info.state == PROC_UNUSED || info.state == PROC_EXITED) {
+            continue;
+        }
+        if (strcmp(info.name, "http_server") == 0) {
+            return 0;
+        }
+    }
+
+    char *argv[] = {"http_server", "&", NULL};
+    if (run_external(argv, 2, true) < 0) {
+        printf("[init] http_server autostart failed\n");
+        return -1;
+    }
+
+    return 0;
+}
+
 int main(int shell_argc, char **shell_argv) {
     (void) shell_argc;
     (void) shell_argv;
     history_load();
-    char cwd_path[FS_PATH_MAX];
+    init_process();
 
+    char cwd_path[FS_PATH_MAX];
     while (1) {
 prompt:
+        memset(cwd_path, 0, FS_PATH_MAX);
         if (getcwd(cwd_path) < 0) {
             strcpy_s(cwd_path, FS_PATH_MAX, "unkown");
         }
@@ -164,7 +308,11 @@ prompt:
         int draft_len = 0;
         int history_cursor = -1; // -1: not browsing, 0..history_size()-1: browsing
         for (;;) {
-            char ch = getchar();
+            long ch_raw = getchar();
+            if (ch_raw < 0) {
+                continue;
+            }
+            uint8_t ch = (uint8_t) ch_raw;
 
             if (ch == '\r' || ch == '\n') {
                 printf("\n");
@@ -175,8 +323,13 @@ prompt:
             // Arrow keys: ESC [ A(up), ESC [ B(down), ESC [ C(right), ESC [ D(left)
             // Delete key: ESC [ 3 ~
             if (ch == 0x1b) {
-                char c1 = getchar();
-                char c2 = getchar();
+                long c1_raw = getchar();
+                long c2_raw = getchar();
+                if (c1_raw < 0 || c2_raw < 0) {
+                    continue;
+                }
+                uint8_t c1 = (uint8_t) c1_raw;
+                uint8_t c2 = (uint8_t) c2_raw;
                 if (c1 == '[' && (c2 == 'A' || c2 == 'B' || c2 == 'C' || c2 == 'D' || c2 == '3')) {
                     int hsize = history_size();
 
@@ -193,7 +346,11 @@ prompt:
                         }
                         continue;
                     } else if (c2 == '3') { // delete
-                        char c3 = getchar();
+                        long c3_raw = getchar();
+                        if (c3_raw < 0) {
+                            continue;
+                        }
+                        uint8_t c3 = (uint8_t) c3_raw;
                         if (c3 == '~' && cursor < len) {
                             for (int i = cursor; i < len - 1; i++) {
                                 cmdline[i] = cmdline[i + 1];
@@ -251,9 +408,18 @@ prompt:
                 continue;
             }
 
-            // Tab completion (app names only)
+            // Tab completion:
+            // - first token: command/app name completion
+            // - after first token: file/dir name completion in cwd
             if (ch == '\t') {
-                if (complete_app_name(cmdline, &len, &cursor)) {
+                int cmd_end = first_token_end(cmdline, len);
+                int completed = 0;
+                if (cursor <= cmd_end) {
+                    completed = complete_app_name(cmdline, &len, &cursor);
+                } else {
+                    completed = complete_dir_name(cmdline, &len, &cursor, cwd_path);
+                }
+                if (completed) {
                     redraw_cmdline(cmdline, cursor, cwd_path);
                 }
                 continue;
@@ -276,6 +442,11 @@ prompt:
             if (len == sizeof(cmdline) - 1) {
                 printf("\ncommand too long\n");
                 goto prompt;
+            }
+
+            // Accept only visible ASCII into command buffer.
+            if (ch < 0x20 || ch > 0x7e) {
+                continue;
             }
 
             if (cursor == len) {
@@ -388,6 +559,12 @@ prompt:
             }
             if (shell_cmd_net_recv_raw(max_bytes) < 0) {
                 printf("net_recv_raw failed\n");
+            }
+        }
+
+        else if (strcmp(argv[0], "sockudp") == 0) {
+            if (shell_cmd_sockudp(argc, argv) < 0) {
+                printf("sockudp failed\n");
             }
         }
 

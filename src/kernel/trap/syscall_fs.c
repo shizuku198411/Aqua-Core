@@ -33,7 +33,12 @@ void syscall_handle_close(struct trap_frame *f) {
         return;
     }
 
-    f->a0 = fs_close(current_proc->pid, (int) f->a0);
+    int fd = (int) f->a0;
+    int ret = fs_close(current_proc->pid, fd);
+    if (ret < 0) {
+        ret = syscall_net_close_socket_fd(fd);
+    }
+    f->a0 = ret;
 }
 
 void syscall_handle_read(struct trap_frame *f) {

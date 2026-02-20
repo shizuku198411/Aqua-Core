@@ -6,7 +6,9 @@ import sys
 
 BLOCK_SIZE = 512
 APPFS_MAGIC = 0x41504653
-APPFS_START_BLOCK = 192
+# Keep this in sync with src/kernel/fs/fs.c.
+# Must be after pfs image area.
+APPFS_START_BLOCK = 4096
 FS_NAME_MAX = 16
 
 APPS = [
@@ -27,7 +29,10 @@ APPS = [
     "ping",
     "udp_send",
     "nslookup",
-    "echo"
+    "echo",
+    "edit",
+    "curl",
+    "http_server",
 ]
 
 

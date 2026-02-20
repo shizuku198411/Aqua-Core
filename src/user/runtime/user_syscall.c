@@ -2,6 +2,7 @@
 #include "user/syscall.h"
 #include "fs/fs.h"
 #include "time/rtc.h"
+#include "user/socket.h"
 
 
 int syscall(int sysno, int arg0, int arg1, int arg2) {
@@ -15,6 +16,22 @@ int syscall(int sysno, int arg0, int arg1, int arg2) {
                          : "r"(a0), "r"(a1), "r"(a2), "r"(a3)
                          : "memory");
 
+    return a0;
+}
+
+static int syscall6(int sysno, int arg0, int arg1, int arg2, int arg4, int arg5, int arg6) {
+    register int a0 __asm__("a0") = arg0;
+    register int a1 __asm__("a1") = arg1;
+    register int a2 __asm__("a2") = arg2;
+    register int a3 __asm__("a3") = sysno;
+    register int a4 __asm__("a4") = arg4;
+    register int a5 __asm__("a5") = arg5;
+    register int a6 __asm__("a6") = arg6;
+
+    __asm__ __volatile__("ecall"
+                         : "=r"(a0)
+                         : "r"(a0), "r"(a1), "r"(a2), "r"(a3), "r"(a4), "r"(a5), "r"(a6)
+                         : "memory");
     return a0;
 }
 
@@ -143,4 +160,40 @@ int chdir(const char *path) {
 
 int ping_tx(uint32_t dst_ip, uint16_t id, uint16_t seq) {
     return syscall(SYSCALL_PING_TX, (int) dst_ip, (int) id, (int) seq);
+}
+
+int socket(int domain, int type, int protocol) {
+    return syscall(SYSCALL_SOCKET, domain, type, protocol);
+}
+
+int bind(int sockfd, const struct socket_addr_in *addr, uint32_t addrlen) {
+    return syscall(SYSCALL_BIND, sockfd, (int) addr, (int) addrlen);
+}
+
+int sendto(int sockfd, const void *buf, int len, const struct socket_addr_in *to, uint32_t tolen) {
+    return syscall6(SYSCALL_SENDTO, sockfd, (int) buf, len, (int) to, (int) tolen, 0);
+}
+
+int recvfrom(int sockfd, void *buf, int len, struct socket_addr_in *from, uint32_t *fromlen) {
+    return syscall6(SYSCALL_RECVFROM, sockfd, (int) buf, len, (int) from, (int) fromlen, 0);
+}
+
+int connect(int sockfd, const struct socket_addr_in *addr, uint32_t addrlen) {
+    return syscall(SYSCALL_CONNECT, sockfd, (int) addr, (int) addrlen);
+}
+
+int send(int sockfd, const void *buf, int len) {
+    return syscall(SYSCALL_SEND, sockfd, (int) buf, len);
+}
+
+int recv(int sockfd, void *buf, int len) {
+    return syscall(SYSCALL_RECV, sockfd, (int) buf, len);
+}
+
+int listen(int sockfd, int backlog) {
+    return syscall(SYSCALL_LISTEN, sockfd, backlog, 0);
+}
+
+int accept(int sockfd, struct socket_addr_in *addr, uint32_t *addrlen) {
+    return syscall(SYSCALL_ACCEPT, sockfd, (int) addr, (int) addrlen);
 }

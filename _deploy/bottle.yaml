@@ -9,3 +9,5 @@ services:
     device:
       - /dev/net/tun
     network: raind0
+    ports:
+      - "18888:8080"

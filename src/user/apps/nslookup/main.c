@@ -1,11 +1,8 @@
 #include "core/commonlibs.h"
 #include "user_syscall.h"
-#include "fs/fs.h"
 
-#define NET0_UDP_MAGIC      0x55445030u  // "UDP0"
 #define DNS_QUERY_CAP       512
-#define NET_REQ_CAP         1024
-#define RX_FRAME_CAP        1600
+#define DNS_RX_CAP          1024
 #define DNS_DEFAULT_IP      0x08080808u  // 8.8.8.8
 #define DNS_DST_PORT        53u
 #define DNS_SRC_PORT        53000u
@@ -16,16 +13,17 @@ static uint16_t read_be16(const uint8_t *p) {
     return (uint16_t) (((uint16_t) p[0] << 8) | (uint16_t) p[1]);
 }
 
-static uint32_t read_be32(const uint8_t *p) {
-    return ((uint32_t) p[0] << 24)
-         | ((uint32_t) p[1] << 16)
-         | ((uint32_t) p[2] << 8)
-         | (uint32_t) p[3];
-}
-
 static void write_be16(uint8_t *p, uint16_t v) {
     p[0] = (uint8_t) ((v >> 8) & 0xffu);
     p[1] = (uint8_t) (v & 0xffu);
+}
+
+static uint16_t host_to_be16(uint16_t v) {
+    return (uint16_t) ((v << 8) | (v >> 8));
+}
+
+static uint16_t be16_to_host(uint16_t v) {
+    return host_to_be16(v);
 }
 
 static int parse_octet(const char *s, int *consumed, uint32_t *out) {
@@ -208,74 +206,6 @@ static int parse_dns_answer_a(const uint8_t *dns, int dns_len) {
     return found;
 }
 
-static int match_dns_udp_frame(const uint8_t *f,
-                               int n,
-                               uint32_t expect_src_ip,
-                               uint16_t expect_dst_port,
-                               uint16_t expect_txid,
-                               const uint8_t **dns_out,
-                               int *dns_len_out) {
-    if (!f || n < (14 + 20 + 8 + 12)) {
-        return 0;
-    }
-
-    if (read_be16(&f[12]) != 0x0800u) {
-        return 0;
-    }
-
-    const uint8_t *ip = &f[14];
-    uint8_t ver = (uint8_t) (ip[0] >> 4);
-    uint8_t ihl = (uint8_t) ((ip[0] & 0x0fu) * 4u);
-    if (ver != 4u || ihl < 20u) {
-        return 0;
-    }
-    if (14 + ihl + 8 + 12 > n) {
-        return 0;
-    }
-    if (ip[9] != 17u) { // UDP
-        return 0;
-    }
-
-    uint16_t ip_total = read_be16(&ip[2]);
-    if (ip_total < ihl + 8u || (int) ip_total > n - 14) {
-        return 0;
-    }
-
-    uint32_t src_ip = read_be32(&ip[12]);
-    if (src_ip != expect_src_ip) {
-        return 0;
-    }
-
-    const uint8_t *udp = ip + ihl;
-    uint16_t src_port = read_be16(&udp[0]);
-    uint16_t dst_port = read_be16(&udp[2]);
-    uint16_t udp_len = read_be16(&udp[4]);
-    if (src_port != DNS_DST_PORT || dst_port != expect_dst_port) {
-        return 0;
-    }
-    if (udp_len < 8u + 12u) {
-        return 0;
-    }
-    if ((int) udp_len > (int) ip_total - (int) ihl) {
-        return 0;
-    }
-
-    const uint8_t *dns = udp + 8;
-    int dns_len = (int) udp_len - 8;
-    uint16_t txid = read_be16(&dns[0]);
-    uint16_t flags = read_be16(&dns[2]);
-    if (txid != expect_txid) {
-        return 0;
-    }
-    if ((flags & 0x8000u) == 0) { // QR must be response
-        return 0;
-    }
-
-    *dns_out = dns;
-    *dns_len_out = dns_len;
-    return 1;
-}
-
 int main(int argc, char **argv) {
     if (argc != 2 && argc != 3) {
         printf("usage: nslookup <name> [dns-server-ipv4]\n");
@@ -297,65 +227,78 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    uint8_t req[NET_REQ_CAP];
-    int req_len = 12 + dns_query_len;
-    if (req_len > NET_REQ_CAP) {
-        printf("request too large\n");
-        return -1;
-    }
-    req[0] = (uint8_t) ((NET0_UDP_MAGIC >> 24) & 0xffu);
-    req[1] = (uint8_t) ((NET0_UDP_MAGIC >> 16) & 0xffu);
-    req[2] = (uint8_t) ((NET0_UDP_MAGIC >> 8) & 0xffu);
-    req[3] = (uint8_t) (NET0_UDP_MAGIC & 0xffu);
-    req[4] = (uint8_t) ((dns_ip >> 24) & 0xffu);
-    req[5] = (uint8_t) ((dns_ip >> 16) & 0xffu);
-    req[6] = (uint8_t) ((dns_ip >> 8) & 0xffu);
-    req[7] = (uint8_t) (dns_ip & 0xffu);
-    req[8] = (uint8_t) ((DNS_SRC_PORT >> 8) & 0xffu);
-    req[9] = (uint8_t) (DNS_SRC_PORT & 0xffu);
-    req[10] = (uint8_t) ((DNS_DST_PORT >> 8) & 0xffu);
-    req[11] = (uint8_t) (DNS_DST_PORT & 0xffu);
-    memcpy(&req[12], dns_query, (size_t) dns_query_len);
-
-    int netfd = fs_open("/dev/net0", O_RDWR);
-    if (netfd < 0) {
-        printf("open /dev/net0 failed\n");
+    int s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (s < 0) {
+        printf("socket failed\n");
         return -1;
     }
 
-    int tx = fs_write(netfd, req, req_len);
+    struct socket_addr_in local;
+    local.sin_family = AF_INET;
+    local.sin_port = host_to_be16(DNS_SRC_PORT);
+    local.sin_addr = 0; // wildcard (local interface)
+    if (bind(s, &local, sizeof(local)) < 0) {
+        printf("bind failed\n");
+        fs_close(s);
+        return -1;
+    }
+
+    struct socket_addr_in to;
+    to.sin_family = AF_INET;
+    to.sin_port = host_to_be16(DNS_DST_PORT);
+    to.sin_addr = dns_ip;
+
+    int tx = sendto(s, dns_query, dns_query_len, &to, sizeof(to));
     if (tx < 0) {
         printf("dns query send failed (%d)\n", tx);
-        fs_close(netfd);
+        fs_close(s);
         return -1;
     }
 
-    uint8_t frame[RX_FRAME_CAP];
+    uint8_t dns_rx[DNS_RX_CAP];
     for (uint32_t i = 0; i < DNS_RETRY_MAX; i++) {
-        int n = fs_read(netfd, frame, sizeof(frame));
+        struct socket_addr_in from;
+        uint32_t fromlen = sizeof(from);
+        int n = recvfrom(s, dns_rx, sizeof(dns_rx), &from, &fromlen);
         if (n < 0) {
             sleep(DNS_RETRY_SLEEP_MS);
             continue;
         }
 
-        const uint8_t *dns = NULL;
-        int dns_len = 0;
-        if (!match_dns_udp_frame(frame, n, dns_ip, DNS_SRC_PORT, txid, &dns, &dns_len)) {
+        if (from.sin_family != AF_INET) {
+            continue;
+        }
+        if (from.sin_addr != dns_ip) {
+            continue;
+        }
+        if (be16_to_host(from.sin_port) != DNS_DST_PORT) {
+            continue;
+        }
+        if (n < 12) {
             continue;
         }
 
-        int a_count = parse_dns_answer_a(dns, dns_len);
+        uint16_t r_txid = read_be16(&dns_rx[0]);
+        uint16_t flags = read_be16(&dns_rx[2]);
+        if (r_txid != txid) {
+            continue;
+        }
+        if ((flags & 0x8000u) == 0) { // QR must be response
+            continue;
+        }
+
+        int a_count = parse_dns_answer_a(dns_rx, n);
         if (a_count > 0) {
-            fs_close(netfd);
+            fs_close(s);
             return 0;
         }
 
         printf("no A record found\n");
-        fs_close(netfd);
+        fs_close(s);
         return -1;
     }
 
     printf("dns query timeout\n");
-    fs_close(netfd);
+    fs_close(s);
     return -1;
 }

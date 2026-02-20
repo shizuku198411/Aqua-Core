@@ -10,7 +10,17 @@ static uint32_t input_head;
 static uint32_t input_tail;
 static uint32_t input_count;
 
+static void input_ring_repair_if_needed(void) {
+    uint32_t cap = (uint32_t) sizeof(input_buf);
+    if (input_head >= cap || input_tail >= cap || input_count > cap) {
+        input_head = 0;
+        input_tail = 0;
+        input_count = 0;
+    }
+}
+
 static bool input_pop(char *ch) {
+    input_ring_repair_if_needed();
     if (input_count == 0) {
         return false;
     }
@@ -22,6 +32,7 @@ static bool input_pop(char *ch) {
 }
 
 void poll_console_input(void) {
+    input_ring_repair_if_needed();
     while (input_count < sizeof(input_buf)) {
         long ch = getchar();
         if (ch < 0) {

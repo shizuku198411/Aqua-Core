@@ -99,6 +99,64 @@ static int parse_arp_reply(const uint8_t *frame,
     return 1;
 }
 
+int net_arp_try_reply(const void *frame, size_t len) {
+    const uint8_t *rx = (const uint8_t *) frame;
+    if (!rx || len < 42u) {
+        return 0;
+    }
+    if (read_be16(&rx[12]) != NET_ETH_TYPE_ARP) {
+        return 0;
+    }
+
+    const uint8_t *arp = &rx[14];
+    if (read_be16(&arp[0]) != NET_ARP_HTYPE_ETHERNET) {
+        return 0;
+    }
+    if (read_be16(&arp[2]) != NET_ARP_PTYPE_IPV4) {
+        return 0;
+    }
+    if (arp[4] != 6u || arp[5] != 4u) {
+        return 0;
+    }
+    if (read_be16(&arp[6]) != NET_ARP_OP_REQUEST) {
+        return 0;
+    }
+
+    uint32_t target_ip = read_be32(&arp[24]);
+    uint32_t local_ip = net_ipv4_source_addr();
+    if (target_ip != local_ip) {
+        return 0;
+    }
+
+    uint8_t local_mac[6];
+    int ret = net_get_mac(local_mac);
+    if (ret < 0) {
+        return ret;
+    }
+
+    uint8_t tx[NET_ARP_FRAME_LEN];
+    memset(tx, 0, sizeof(tx));
+
+    // Ethernet header
+    memcpy(&tx[0], &arp[8], 6);   // dst = sender hw addr
+    memcpy(&tx[6], local_mac, 6); // src = local mac
+    write_be16(&tx[12], NET_ETH_TYPE_ARP);
+
+    // ARP reply
+    uint8_t *rep = &tx[14];
+    write_be16(&rep[0], NET_ARP_HTYPE_ETHERNET);
+    write_be16(&rep[2], NET_ARP_PTYPE_IPV4);
+    rep[4] = 6u;
+    rep[5] = 4u;
+    write_be16(&rep[6], NET_ARP_OP_REPLY);
+    memcpy(&rep[8], local_mac, 6);       // sender hw addr (local)
+    write_be32(&rep[14], local_ip);      // sender ip   (local)
+    memcpy(&rep[18], &arp[8], 6);        // target hw addr (request sender)
+    write_be32(&rep[24], read_be32(&arp[14])); // target ip (request sender ip)
+
+    return net_tx_frame(tx, sizeof(tx));
+}
+
 int net_arp_resolve(uint32_t src_ip, uint32_t target_ip, uint8_t out_mac[6]) {
     if (!out_mac || src_ip == 0u || target_ip == 0u) {
         return NET_ERR_INVAL;

@@ -1,9 +1,7 @@
 #include "core/commonlibs.h"
 #include "user_syscall.h"
-#include "fs/fs.h"
 
-#define NET0_UDP_MAGIC 0x55445030u  // "UDP0"
-#define UDP_SEND_REQ_MAX 512
+#define UDP_SEND_PAYLOAD_MAX 512
 
 static int local_strlen(const char *s) {
     int n = 0;
@@ -81,6 +79,10 @@ static int parse_u16(const char *s, uint16_t *out) {
     return 0;
 }
 
+static uint16_t host_to_be16(uint16_t v) {
+    return (uint16_t) ((v << 8) | (v >> 8));
+}
+
 int main(int argc, char **argv) {
     if (argc != 5) {
         printf("usage: udp_send <ipv4> <sport> <dport> <payload>\n");
@@ -102,37 +104,34 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    int req_len = 12 + payload_len;
-    if (req_len > UDP_SEND_REQ_MAX) {
-        printf("payload too large (max %d)\n", UDP_SEND_REQ_MAX - 12);
+    if (payload_len > UDP_SEND_PAYLOAD_MAX) {
+        printf("payload too large (max %d)\n", UDP_SEND_PAYLOAD_MAX);
         return -1;
     }
 
-    uint8_t req[UDP_SEND_REQ_MAX];
-    req[0] = (uint8_t) ((NET0_UDP_MAGIC >> 24) & 0xffu);
-    req[1] = (uint8_t) ((NET0_UDP_MAGIC >> 16) & 0xffu);
-    req[2] = (uint8_t) ((NET0_UDP_MAGIC >> 8) & 0xffu);
-    req[3] = (uint8_t) (NET0_UDP_MAGIC & 0xffu);
-    req[4] = (uint8_t) ((dst_ip >> 24) & 0xffu);
-    req[5] = (uint8_t) ((dst_ip >> 16) & 0xffu);
-    req[6] = (uint8_t) ((dst_ip >> 8) & 0xffu);
-    req[7] = (uint8_t) (dst_ip & 0xffu);
-    req[8] = (uint8_t) ((sport >> 8) & 0xffu);
-    req[9] = (uint8_t) (sport & 0xffu);
-    req[10] = (uint8_t) ((dport >> 8) & 0xffu);
-    req[11] = (uint8_t) (dport & 0xffu);
-    if (payload_len > 0) {
-        memcpy(&req[12], payload, (size_t) payload_len);
-    }
-
-    int netfd = fs_open("/dev/net0", O_WRONLY);
-    if (netfd < 0) {
-        printf("open /dev/net0 failed\n");
+    int s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (s < 0) {
+        printf("socket failed\n");
         return -1;
     }
 
-    int ret = fs_write(netfd, req, req_len);
-    fs_close(netfd);
+    struct socket_addr_in local;
+    local.sin_family = AF_INET;
+    local.sin_port = host_to_be16(sport);
+    local.sin_addr = 0; // wildcard (local interface)
+    if (bind(s, &local, sizeof(local)) < 0) {
+        printf("bind failed\n");
+        fs_close(s);
+        return -1;
+    }
+
+    struct socket_addr_in to;
+    to.sin_family = AF_INET;
+    to.sin_port = host_to_be16(dport);
+    to.sin_addr = dst_ip;
+
+    int ret = sendto(s, payload, payload_len, &to, sizeof(to));
+    fs_close(s);
     if (ret < 0) {
         printf("udp_send failed (%d)\n", ret);
         return -1;

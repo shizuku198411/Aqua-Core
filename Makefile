@@ -22,13 +22,28 @@ QEMU_OPT := -machine virt -bios default -nographic -serial mon:stdio --no-reboot
 DISK_IMG := $(BIN_DIR)/disk.img
 DISK_SIZE := 16M
 QEMU_BLK_OPT = -drive file=$(DISK_IMG),if=none,format=raw,id=hd0 -device virtio-blk-device,drive=hd0,bus=virtio-mmio-bus.0
-QEMU_NETDEV_USER = -netdev user,id=net0
+QEMU_HOSTFWD ?=
+QEMU_NETDEV_USER_BASE = -netdev user,id=net0
+QEMU_NETDEV_USER_HOSTFWD :=
+ifneq ($(strip $(QEMU_HOSTFWD)),)
+QEMU_NETDEV_USER_HOSTFWD := ,$(QEMU_HOSTFWD)
+endif
+QEMU_NETDEV_USER = $(QEMU_NETDEV_USER_BASE)$(QEMU_NETDEV_USER_HOSTFWD)
 QEMU_NETDEV_TAP = -netdev tap,id=net0,ifname=tap0,script=no,downscript=no,vhost=off,vnet_hdr=off
 QEMU_NET_DEVICE = -device virtio-net-device,bus=virtio-mmio-bus.1,netdev=net0
+NET_BACKEND ?= tap
+ifeq ($(NET_BACKEND),user)
+QEMU_NETDEV_SELECTED = $(QEMU_NETDEV_USER)
+else
+QEMU_NETDEV_SELECTED = $(QEMU_NETDEV_TAP)
+endif
 TAP_DEV ?= tap0
 TAP_ADDR ?= 10.0.2.1/24
 TAP_CIDR ?= 10.0.2.0/24
 WAN_DEV ?= wlan0
+PORTFWD_HOST_PORT ?= 18880
+PORTFWD_GUEST_IP ?= 10.0.2.15
+PORTFWD_GUEST_PORT ?= 8080
 
 # kernel
 KERNEL_ELF := $(BIN_DIR)/kernel.elf
@@ -106,6 +121,18 @@ NSLOOKUP_OBJ := $(OBJ_DIR)/nslookup.bin.o
 ECHO_ELF := $(BIN_DIR)/echo.elf
 ECHO_BIN := $(BIN_DIR)/echo.bin
 ECHO_OBJ := $(OBJ_DIR)/echo.bin.o
+# edit
+EDIT_ELF := $(BIN_DIR)/edit.elf
+EDIT_BIN := $(BIN_DIR)/edit.bin
+EDIT_OBJ := $(OBJ_DIR)/edit.bin.o
+# curl
+CURL_ELF := $(BIN_DIR)/curl.elf
+CURL_BIN := $(BIN_DIR)/curl.bin
+CURL_OBJ := $(OBJ_DIR)/curl.bin.o
+# http_server
+HTTP_SERVER_ELF := $(BIN_DIR)/http_server.elf
+HTTP_SERVER_BIN := $(BIN_DIR)/http_server.bin
+HTTP_SERVER_OBJ := $(OBJ_DIR)/http_server.bin.o
 
 # test
 TEST_BIN_DIR := $(BIN_DIR)/tests
@@ -363,11 +390,44 @@ $(ECHO_BIN): $(ECHO_ELF)
 $(ECHO_OBJ): $(ECHO_BIN)
 	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(ECHO_BIN) $@
 
+# edit
+$(EDIT_ELF): dirs
+	$(CC) $(CFLAGS) -Wl,-T$(USER_SRC_DIR)/user.ld -Wl,-Map=$(MAP_DIR)/edit.map -o $@ \
+		$(USER_RUNTIME_DIR)/*.c $(USER_APPS_DIR)/edit/*.c $(LIB_SRC_DIR)/commonlibs.c
+
+$(EDIT_BIN): $(EDIT_ELF)
+	$(OBJCOPY) --set-section-flags .bss=alloc,contents -O binary $< $@
+
+$(EDIT_OBJ): $(EDIT_BIN)
+	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(EDIT_BIN) $@
+
+# curl
+$(CURL_ELF): dirs
+	$(CC) $(CFLAGS) -Wl,-T$(USER_SRC_DIR)/user.ld -Wl,-Map=$(MAP_DIR)/curl.map -o $@ \
+		$(USER_RUNTIME_DIR)/*.c $(USER_APPS_DIR)/curl/*.c $(LIB_SRC_DIR)/commonlibs.c
+
+$(CURL_BIN): $(CURL_ELF)
+	$(OBJCOPY) --set-section-flags .bss=alloc,contents -O binary $< $@
+
+$(CURL_OBJ): $(CURL_BIN)
+	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(CURL_BIN) $@
+
+# http_server
+$(HTTP_SERVER_ELF): dirs
+	$(CC) $(CFLAGS) -Wl,-T$(USER_SRC_DIR)/user.ld -Wl,-Map=$(MAP_DIR)/http_server.map -o $@ \
+		$(USER_RUNTIME_DIR)/*.c $(USER_APPS_DIR)/http_server/*.c $(LIB_SRC_DIR)/commonlibs.c
+
+$(HTTP_SERVER_BIN): $(HTTP_SERVER_ELF)
+	$(OBJCOPY) --set-section-flags .bss=alloc,contents -O binary $< $@
+
+$(HTTP_SERVER_OBJ): $(HTTP_SERVER_BIN)
+	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(HTTP_SERVER_BIN) $@
+
 
 $(KERNEL_ELF): $(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 	$(MKDIR_OBJ) $(RMDIR_OBJ) $(TOUCH_OBJ) $(RM_OBJ) $(WRITE_OBJ) $(CAT_OBJ) \
 	$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ) $(PING_OBJ) $(UDP_SEND_OBJ) $(NSLOOKUP_OBJ) \
-	$(ECHO_OBJ)
+	$(ECHO_OBJ) $(EDIT_OBJ) $(CURL_OBJ) $(HTTP_SERVER_OBJ)
 	$(CC) $(CFLAGS) -Wl,-T$(KERNEL_SRC_DIR)/kernel.ld -Wl,-Map=$(MAP_DIR)/kernel.map -o $@ \
 		$(LIB_SRC_DIR)/commonlibs.c \
 		$(KERNEL_SRC_DIR)/kernel.c \
@@ -382,20 +442,22 @@ $(KERNEL_ELF): $(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 			$(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 			$(MKDIR_OBJ) $(RMDIR_OBJ) $(TOUCH_OBJ) $(RM_OBJ) $(WRITE_OBJ) $(CAT_OBJ) \
 			$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ) $(PING_OBJ) $(UDP_SEND_OBJ) $(NSLOOKUP_OBJ) \
-			$(ECHO_OBJ)
+			$(ECHO_OBJ) $(EDIT_OBJ) $(CURL_OBJ) $(HTTP_SERVER_OBJ)
 
 disk: dirs
 	@if [ ! -f "$(DISK_IMG)" ]; then \
 		truncate -s $(DISK_SIZE) "$(DISK_IMG)"; \
 	fi
-	@if [ -f "$(SHELL_BIN)" ]; then \
-		python3 scripts/pack_appfs.py --disk "$(DISK_IMG)" --bin-dir "$(BIN_DIR)"; \
+	@if [ ! -f "$(KERNEL_ELF)" ]; then \
+		echo "[disk] first-time setup: building kernel and user apps..."; \
+		$(MAKE) $(KERNEL_ELF); \
 	fi
+	@python3 scripts/pack_appfs.py --disk "$(DISK_IMG)" --bin-dir "$(BIN_DIR)"
 
 run: $(KERNEL_ELF) disk
 	$(QEMU) $(QEMU_OPT) \
 		$(QEMU_BLK_OPT) \
-		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NETDEV_SELECTED) \
 		$(QEMU_NET_DEVICE) \
 		-kernel $(KERNEL_ELF)
 
@@ -408,7 +470,7 @@ run-release:
 start: disk
 	$(QEMU) $(QEMU_OPT) \
 		$(QEMU_BLK_OPT) \
-		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NETDEV_SELECTED) \
 		$(QEMU_NET_DEVICE) \
 		-kernel $(KERNEL_ELF)
 
@@ -421,7 +483,7 @@ start-release:
 qemu-debug:
 	$(QEMU) $(QEMU_OPT) -S -s \
 		$(QEMU_BLK_OPT) \
-		$(QEMU_NETDEV_TAP) \
+		$(QEMU_NETDEV_SELECTED) \
 		$(QEMU_NET_DEVICE) \
 		-kernel $(KERNEL_ELF)
 
@@ -509,10 +571,22 @@ nat-up:
 	if ! $$SUDO_CMD iptables -t nat -C POSTROUTING -s $(TAP_CIDR) -o $(WAN_DEV) -j MASQUERADE >/dev/null 2>&1; then \
 		$$SUDO_CMD iptables -t nat -A POSTROUTING -s $(TAP_CIDR) -o $(WAN_DEV) -j MASQUERADE; \
 	fi; \
+	if ! $$SUDO_CMD iptables -t nat -C PREROUTING -p tcp --dport $(PORTFWD_HOST_PORT) -j DNAT --to-destination $(PORTFWD_GUEST_IP):$(PORTFWD_GUEST_PORT) >/dev/null 2>&1; then \
+		$$SUDO_CMD iptables -t nat -A PREROUTING -p tcp --dport $(PORTFWD_HOST_PORT) -j DNAT --to-destination $(PORTFWD_GUEST_IP):$(PORTFWD_GUEST_PORT); \
+	fi; \
+	if ! $$SUDO_CMD iptables -t nat -C OUTPUT -p tcp --dport $(PORTFWD_HOST_PORT) -j DNAT --to-destination $(PORTFWD_GUEST_IP):$(PORTFWD_GUEST_PORT) >/dev/null 2>&1; then \
+		$$SUDO_CMD iptables -t nat -A OUTPUT -p tcp --dport $(PORTFWD_HOST_PORT) -j DNAT --to-destination $(PORTFWD_GUEST_IP):$(PORTFWD_GUEST_PORT); \
+	fi; \
+	if ! $$SUDO_CMD iptables -C FORWARD -p tcp -d $(PORTFWD_GUEST_IP) --dport $(PORTFWD_GUEST_PORT) -j ACCEPT >/dev/null 2>&1; then \
+		$$SUDO_CMD iptables -A FORWARD -p tcp -d $(PORTFWD_GUEST_IP) --dport $(PORTFWD_GUEST_PORT) -j ACCEPT; \
+	fi; \
 	echo "NAT enabled: $(TAP_CIDR) -> $(WAN_DEV)"
 
 nat-down:
 	@SUDO_CMD=$$(command -v sudo >/dev/null 2>&1 && echo sudo || echo ""); \
+	$$SUDO_CMD iptables -D FORWARD -p tcp -d $(PORTFWD_GUEST_IP) --dport $(PORTFWD_GUEST_PORT) -j ACCEPT >/dev/null 2>&1 || true; \
+	$$SUDO_CMD iptables -t nat -D OUTPUT -p tcp --dport $(PORTFWD_HOST_PORT) -j DNAT --to-destination $(PORTFWD_GUEST_IP):$(PORTFWD_GUEST_PORT) >/dev/null 2>&1 || true; \
+	$$SUDO_CMD iptables -t nat -D PREROUTING -p tcp --dport $(PORTFWD_HOST_PORT) -j DNAT --to-destination $(PORTFWD_GUEST_IP):$(PORTFWD_GUEST_PORT) >/dev/null 2>&1 || true; \
 	$$SUDO_CMD iptables -t nat -D POSTROUTING -s $(TAP_CIDR) -o $(WAN_DEV) -j MASQUERADE >/dev/null 2>&1 || true; \
 	$$SUDO_CMD iptables -D FORWARD -i $(TAP_DEV) -o $(WAN_DEV) -j ACCEPT >/dev/null 2>&1 || true; \
 	$$SUDO_CMD iptables -D FORWARD -i $(WAN_DEV) -o $(TAP_DEV) -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT >/dev/null 2>&1 || true; \
@@ -547,7 +621,10 @@ clean:
 		$(PING_ELF) $(PING_BIN) $(PING_OBJ) \
 		$(UDP_SEND_ELF) $(UDP_SEND_BIN) $(UDP_SEND_OBJ) \
 		$(NSLOOKUP_ELF) $(NSLOOKUP_BIN) $(NSLOOKUP_OBJ) \
-		$(ECHO_ELF) $(ECHO_BIN) $(ECHO_OBJ)
+		$(ECHO_ELF) $(ECHO_BIN) $(ECHO_OBJ) \
+		$(EDIT_ELF) $(EDIT_BIN) $(EDIT_OBJ) \
+		$(CURL_ELF) $(CURL_BIN) $(CURL_OBJ) \
+		$(HTTP_SERVER_ELF) $(HTTP_SERVER_BIN) $(HTTP_SERVER_OBJ)
 	rm -f $(MAP_DIR)/*.map
 
 distclean: clean

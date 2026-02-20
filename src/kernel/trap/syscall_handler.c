@@ -117,6 +117,42 @@ void handle_syscall(struct trap_frame *f) {
             syscall_handle_execv_path(f);
             break;
 
+        case SYSCALL_SOCKET:
+            syscall_handle_socket(f);
+            break;
+
+        case SYSCALL_SENDTO:
+            syscall_handle_sendto(f);
+            break;
+
+        case SYSCALL_RECVFROM:
+            syscall_handle_recvfrom(f);
+            break;
+
+        case SYSCALL_BIND:
+            syscall_handle_bind(f);
+            break;
+
+        case SYSCALL_CONNECT:
+            syscall_handle_connect(f);
+            break;
+
+        case SYSCALL_SEND:
+            syscall_handle_send(f);
+            break;
+
+        case SYSCALL_RECV:
+            syscall_handle_recv(f);
+            break;
+
+        case SYSCALL_LISTEN:
+            syscall_handle_listen(f);
+            break;
+
+        case SYSCALL_ACCEPT:
+            syscall_handle_accept(f);
+            break;
+
         default:
             PANIC("undefined system call");
     }
