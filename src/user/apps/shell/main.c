@@ -22,6 +22,7 @@ const char builtin_cmd[NUM_BUILTIN_CMD][FS_NAME_MAX] = {
 };
 
 char shell_app_names[FS_MAX_NODES][FS_NAME_MAX];
+char current_dir_list[FS_MAX_NODES][FS_NAME_MAX];
 
 static int min_int(int a, int b) {
     return (a < b) ? a : b;
@@ -35,12 +36,53 @@ static int first_token_end(const char *s, int len) {
     return i;
 }
 
+static int token_start_from_cursor(const char *s, int cursor) {
+    int i = cursor;
+    while (i > 0 && s[i - 1] != ' ' && s[i - 1] != '\t') {
+        i--;
+    }
+    return i;
+}
+
 static int common_prefix_len(const char *a, const char *b) {
     int i = 0;
     while (a[i] != '\0' && b[i] != '\0' && a[i] == b[i]) {
         i++;
     }
     return i;
+}
+
+static void replace_token_range(char *cmdline,
+                                int *len,
+                                int *cursor,
+                                int token_start,
+                                int token_end,
+                                const char *new_token,
+                                int new_token_len) {
+    int old_len = *len;
+    int old_token_len = token_end - token_start;
+    int new_len = old_len - old_token_len + new_token_len;
+    if (new_len >= CMDLINE_MAX) {
+        return;
+    }
+
+    if (new_token_len > old_token_len) {
+        for (int i = old_len; i >= token_end; i--) {
+            cmdline[i + (new_token_len - old_token_len)] = cmdline[i];
+        }
+    } else if (new_token_len < old_token_len) {
+        for (int i = token_end; i <= old_len; i++) {
+            cmdline[i - (old_token_len - new_token_len)] = cmdline[i];
+        }
+    }
+
+    for (int i = 0; i < new_token_len; i++) {
+        cmdline[token_start + i] = new_token[i];
+    }
+
+    *len = new_len;
+    *cursor = token_start + new_token_len;
+    cmdline[*len] = '\0';
 }
 
 static void replace_first_token(char *cmdline,
@@ -146,6 +188,80 @@ static int complete_app_name(char *cmdline, int *len, int *cursor) {
     return 0;
 }
 
+static void read_current_dir(const char *cwd) {
+    // clear
+    memset(current_dir_list, 0, FS_MAX_NODES * FS_NAME_MAX);
+    struct fs_dirent ent;
+    for (int i = 0;; i++) {
+        if (fs_readdir(cwd, i, &ent) < 0) {
+            break;
+        }
+        strcpy_s(current_dir_list[i], FS_NAME_MAX, ent.name);
+    }
+}
+
+static int complete_dir_name(char *cmdline, int *len, int *cursor, const char *cwd) {
+    if (!cmdline || !len || !cursor) {
+        return 0;
+    }
+
+    read_current_dir(cwd);
+
+    if (*cursor > *len) {
+        return 0;
+    }
+
+    int token_start = token_start_from_cursor(cmdline, *cursor);
+    int token_end = *cursor;
+    while (token_end < *len && cmdline[token_end] != ' ' && cmdline[token_end] != '\t') {
+        token_end++;
+    }
+
+    int prefix_len = *cursor - token_start;
+    int matches[sizeof(current_dir_list) / sizeof(current_dir_list[0])];
+    int match_count = 0;
+    int dir_count = (int)(sizeof(current_dir_list) / sizeof(current_dir_list[0]));
+
+    for (int i = 0; i < dir_count; i++) {
+        if (current_dir_list[i][0] == '\0') {
+            continue;
+        }
+        int same = 1;
+        for (int j = 0; j < prefix_len; j++) {
+            if (current_dir_list[i][j] != cmdline[token_start + j]) {
+                same = 0;
+                break;
+            }
+        }
+        if (same) {
+            matches[match_count++] = i;
+        }
+    }
+
+    if (match_count == 0) {
+        return 0;
+    }
+
+    if (match_count == 1) {
+        const char *m = current_dir_list[matches[0]];
+        int mlen = str_len(m);
+        replace_token_range(cmdline, len, cursor, token_start, token_end, m, mlen);
+        return 1;
+    }
+
+    int lcp = str_len(current_dir_list[matches[0]]);
+    for (int i = 1; i < match_count; i++) {
+        lcp = min_int(lcp, common_prefix_len(current_dir_list[matches[0]],
+                                             current_dir_list[matches[i]]));
+    }
+    if (lcp > prefix_len) {
+        replace_token_range(cmdline, len, cursor, token_start, token_end, current_dir_list[matches[0]], lcp);
+        return 1;
+    }
+
+    return 0;
+}
+
 int main(int shell_argc, char **shell_argv) {
     (void) shell_argc;
     (void) shell_argv;
@@ -154,6 +270,7 @@ int main(int shell_argc, char **shell_argv) {
 
     while (1) {
 prompt:
+        memset(cwd_path, 0, FS_PATH_MAX);
         if (getcwd(cwd_path) < 0) {
             strcpy_s(cwd_path, FS_PATH_MAX, "unkown");
         }
@@ -265,9 +382,18 @@ prompt:
                 continue;
             }
 
-            // Tab completion (app names only)
+            // Tab completion:
+            // - first token: command/app name completion
+            // - after first token: file/dir name completion in cwd
             if (ch == '\t') {
-                if (complete_app_name(cmdline, &len, &cursor)) {
+                int cmd_end = first_token_end(cmdline, len);
+                int completed = 0;
+                if (cursor <= cmd_end) {
+                    completed = complete_app_name(cmdline, &len, &cursor);
+                } else {
+                    completed = complete_dir_name(cmdline, &len, &cursor, cwd_path);
+                }
+                if (completed) {
                     redraw_cmdline(cmdline, cursor, cwd_path);
                 }
                 continue;
