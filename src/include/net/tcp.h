@@ -29,6 +29,7 @@ int net_tcp_set_state(int id, enum net_tcp_state state);
 enum net_tcp_state net_tcp_get_state(int id);
 const char *net_tcp_state_name(enum net_tcp_state state);
 int net_tcp_connect(uint32_t dst_ip, uint16_t src_port, uint16_t dst_port);
+int net_tcp_accept(uint16_t local_port, uint32_t *peer_ip_out, uint16_t *peer_port_out);
 int net_tcp_send(int id, const void *buf, size_t len);
 int net_tcp_recv(int id, void *buf, size_t cap);
 int net_tcp_close(int id);

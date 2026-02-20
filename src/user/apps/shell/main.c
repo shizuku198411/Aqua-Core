@@ -262,12 +262,38 @@ static int complete_dir_name(char *cmdline, int *len, int *cursor, const char *c
     return 0;
 }
 
+static int init_process(void) {
+    for (int i = 1; i < PROCS_MAX; i++) {
+        struct ps_info info;
+        memset(&info, 0, sizeof(info));
+        if (ps(i, &info) < 0) {
+            continue;
+        }
+        info.name[PROC_NAME_MAX - 1] = '\0';
+        if (info.state == PROC_UNUSED || info.state == PROC_EXITED) {
+            continue;
+        }
+        if (strcmp(info.name, "http_server") == 0) {
+            return 0;
+        }
+    }
+
+    char *argv[] = {"http_server", "&", NULL};
+    if (run_external(argv, 2, true) < 0) {
+        printf("[init] http_server autostart failed\n");
+        return -1;
+    }
+
+    return 0;
+}
+
 int main(int shell_argc, char **shell_argv) {
     (void) shell_argc;
     (void) shell_argv;
     history_load();
-    char cwd_path[FS_PATH_MAX];
+    init_process();
 
+    char cwd_path[FS_PATH_MAX];
     while (1) {
 prompt:
         memset(cwd_path, 0, FS_PATH_MAX);

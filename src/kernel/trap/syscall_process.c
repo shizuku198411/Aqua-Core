@@ -128,15 +128,24 @@ static int write_user_ps_info(struct ps_info *user_ptr, const struct process *pr
     }
 
     struct ps_info kbuf;
-    memset(&kbuf, 0, sizeof(struct ps_info));
+    memset(&kbuf, 0, sizeof(kbuf));
     kbuf.pid = proc->pid;
     kbuf.parent_pid = proc->parent_pid;
     kbuf.state = proc->state;
     kbuf.wait_reason = proc->wait_reason;
     kbuf.exit_code = proc->exit_code;
-    strcpy_s(kbuf.name, PROC_NAME_MAX, proc->name);
-    kbuf.argc = proc->exec_argc;
-    memcpy(&kbuf.argv, proc->exec_argv, PROC_EXEC_ARG_LEN * PROC_EXEC_ARGV_MAX);
+    strcpy_s(kbuf.name, sizeof(kbuf.name), proc->name);
+
+    int argc = proc->exec_argc;
+    if (argc < 0 || argc > PROC_EXEC_ARGV_MAX) {
+        argc = 0;
+    }
+    kbuf.argc = argc;
+    for (int i = 0; i < PROC_EXEC_ARGV_MAX; i++) {
+        strcpy_s(kbuf.argv[i], sizeof(kbuf.argv[i]), proc->exec_argv[i]);
+        kbuf.argv[i][PROC_EXEC_ARG_LEN - 1] = '\0';
+    }
+    kbuf.name[PROC_NAME_MAX - 1] = '\0';
 
     if (copyout(user_ptr, &kbuf, sizeof(kbuf)) < 0) {
         return -1;
@@ -174,7 +183,23 @@ void syscall_handle_exit(struct trap_frame *f) {
 void syscall_handle_ps(struct trap_frame *f) {
     int index = (int) f->a0;
     struct ps_info *info_ptr = (struct ps_info *) f->a1;
-    if (index < 0 || index >= PROCS_MAX) {
+    if (!current_proc || index < 0 || index >= PROCS_MAX) {
+        f->a0 = -1;
+        return;
+    }
+
+    // ps() writes into caller-owned output buffer. In this codebase, caller uses
+    // a stack local buffer, so restrict to stack area to avoid accidental text overwrite
+    // when a corrupted pointer is passed.
+    uintptr_t user_top = USER_BASE + (uintptr_t) current_proc->user_pages * PAGE_SIZE;
+    uintptr_t stack_floor = (user_top > (uintptr_t) (64 * 1024))
+                          ? (user_top - (uintptr_t) (64 * 1024))
+                          : USER_BASE;
+    uintptr_t ptr = (uintptr_t) info_ptr;
+    if (!info_ptr ||
+        ptr < stack_floor ||
+        ptr + sizeof(struct ps_info) > user_top ||
+        ptr + sizeof(struct ps_info) < ptr) {
         f->a0 = -1;
         return;
     }

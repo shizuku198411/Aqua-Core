@@ -22,6 +22,7 @@ struct kernel_socket {
     uint16_t remote_port; // host order
     uint32_t remote_ip;
     int connected;
+    int listening;
     int tcp_conn_id;
 };
 
@@ -94,6 +95,7 @@ int syscall_net_close_socket_fd(int sockfd) {
     socket_table[pid_idx][sidx].remote_port = 0;
     socket_table[pid_idx][sidx].remote_ip = 0;
     socket_table[pid_idx][sidx].connected = 0;
+    socket_table[pid_idx][sidx].listening = 0;
     socket_table[pid_idx][sidx].tcp_conn_id = -1;
     return 0;
 }
@@ -107,6 +109,7 @@ static int alloc_socket_fd(int pid_idx, int type, uint16_t local_port) {
             socket_table[pid_idx][i].remote_port = 0;
             socket_table[pid_idx][i].remote_ip = 0;
             socket_table[pid_idx][i].connected = 0;
+            socket_table[pid_idx][i].listening = 0;
             socket_table[pid_idx][i].tcp_conn_id = -1;
             return SOCKET_FD_BASE + i;
         }
@@ -336,10 +339,6 @@ void syscall_handle_sendto(struct trap_frame *f) {
 
     int sidx = socket_idx_from_fd(sockfd);
     if (sidx < 0 || !socket_table[pid_idx][sidx].used) {
-        f->a0 = -1;
-        return;
-    }
-    if (socket_table[pid_idx][sidx].type != SOCK_DGRAM) {
         f->a0 = -1;
         return;
     }
@@ -622,4 +621,93 @@ void syscall_handle_recv(struct trap_frame *f) {
         return;
     }
     f->a0 = n;
+}
+
+void syscall_handle_listen(struct trap_frame *f) {
+    int sockfd = (int) f->a0;
+    int pid_idx = socket_pid_index();
+    if (pid_idx < 0) {
+        f->a0 = -1;
+        return;
+    }
+    int sidx = socket_idx_from_fd(sockfd);
+    if (sidx < 0 || !socket_table[pid_idx][sidx].used) {
+        f->a0 = -1;
+        return;
+    }
+    if (socket_table[pid_idx][sidx].type != SOCK_STREAM) {
+        f->a0 = -1;
+        return;
+    }
+    if (socket_table[pid_idx][sidx].local_port == 0u) {
+        f->a0 = -1;
+        return;
+    }
+    socket_table[pid_idx][sidx].listening = 1;
+    socket_table[pid_idx][sidx].connected = 0;
+    f->a0 = 0;
+}
+
+void syscall_handle_accept(struct trap_frame *f) {
+    int sockfd = (int) f->a0;
+    struct socket_addr_in *user_addr = (struct socket_addr_in *) f->a1;
+    uint32_t *user_addrlen = (uint32_t *) f->a2;
+    int pid_idx = socket_pid_index();
+    if (pid_idx < 0) {
+        f->a0 = -1;
+        return;
+    }
+    int sidx = socket_idx_from_fd(sockfd);
+    if (sidx < 0 || !socket_table[pid_idx][sidx].used) {
+        f->a0 = -1;
+        return;
+    }
+    if (socket_table[pid_idx][sidx].type != SOCK_STREAM || !socket_table[pid_idx][sidx].listening) {
+        f->a0 = -1;
+        return;
+    }
+
+    uint32_t peer_ip = 0;
+    uint16_t peer_port = 0;
+    int conn_id = net_tcp_accept(socket_table[pid_idx][sidx].local_port, &peer_ip, &peer_port);
+    if (conn_id < 0) {
+        f->a0 = -1;
+        return;
+    }
+
+    int newfd = alloc_socket_fd(pid_idx, SOCK_STREAM, socket_table[pid_idx][sidx].local_port);
+    if (newfd < 0) {
+        (void) net_tcp_close(conn_id);
+        f->a0 = -1;
+        return;
+    }
+
+    int nsidx = socket_idx_from_fd(newfd);
+    socket_table[pid_idx][nsidx].remote_ip = peer_ip;
+    socket_table[pid_idx][nsidx].remote_port = peer_port;
+    socket_table[pid_idx][nsidx].connected = 1;
+    socket_table[pid_idx][nsidx].listening = 0;
+    socket_table[pid_idx][nsidx].tcp_conn_id = conn_id;
+
+    if (user_addr) {
+        struct socket_addr_in peer;
+        peer.sin_family = AF_INET;
+        peer.sin_port = host_to_be16(peer_port);
+        peer.sin_addr = peer_ip;
+        if (copyout(user_addr, &peer, sizeof(peer)) < 0) {
+            (void) syscall_net_close_socket_fd(newfd);
+            f->a0 = -1;
+            return;
+        }
+    }
+    if (user_addrlen) {
+        uint32_t n = (uint32_t) sizeof(struct socket_addr_in);
+        if (copyout(user_addrlen, &n, sizeof(n)) < 0) {
+            (void) syscall_net_close_socket_fd(newfd);
+            f->a0 = -1;
+            return;
+        }
+    }
+
+    f->a0 = newfd;
 }

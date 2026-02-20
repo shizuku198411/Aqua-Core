@@ -475,8 +475,6 @@ int run_external(char **argv, int argc, bool background) {
         if (waited > 0 && status != 0) {
             printf("exit status: %d\n", status);
         }
-    } else {
-        printf("[bg] pid=%d\n", pid);
     }
     return pid;
 }

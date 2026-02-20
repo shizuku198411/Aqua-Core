@@ -37,4 +37,6 @@ void syscall_handle_bind(struct trap_frame *f);
 void syscall_handle_connect(struct trap_frame *f);
 void syscall_handle_send(struct trap_frame *f);
 void syscall_handle_recv(struct trap_frame *f);
+void syscall_handle_listen(struct trap_frame *f);
+void syscall_handle_accept(struct trap_frame *f);
 int syscall_net_close_socket_fd(int sockfd);

@@ -189,3 +189,11 @@ int send(int sockfd, const void *buf, int len) {
 int recv(int sockfd, void *buf, int len) {
     return syscall(SYSCALL_RECV, sockfd, (int) buf, len);
 }
+
+int listen(int sockfd, int backlog) {
+    return syscall(SYSCALL_LISTEN, sockfd, backlog, 0);
+}
+
+int accept(int sockfd, struct socket_addr_in *addr, uint32_t *addrlen) {
+    return syscall(SYSCALL_ACCEPT, sockfd, (int) addr, (int) addrlen);
+}

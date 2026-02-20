@@ -4,6 +4,7 @@
 #include "core/stdtypes.h"
 #include "core/commonlibs.h"
 #include "user/syscall.h"
+#include "kernel/page_access.h"
 
 extern struct process *current_proc;
 
@@ -30,11 +31,40 @@ void handle_trap(struct trap_frame *f) {
 
         // instruction access fault
         case SCAUSE_INSTRUCTION_ACCESS_FAULT:
-            PANIC("Instruction access fault. scause=%x, stval=%x, sepc=%x\n", scause, stval, user_pc);
+            PANIC("Instruction access fault. scause=%x, stval=%x, sepc=%x, from_user=%d, pid=%d, name=%s, ra=%x\n",
+                  scause,
+                  stval,
+                  user_pc,
+                  (int) from_user,
+                  current_proc ? current_proc->pid : -1,
+                  current_proc ? current_proc->name : "none",
+                  f ? f->ra : 0);
 
         // illecal instruction
         case SCAUSE_ILLEGAL_INSTRUCTION:
-            PANIC("Illegal Instruction. scause=%x, stval=%x, sepc=%x\n", scause, stval, user_pc);
+            {
+                uint16_t insn16 = 0;
+                uint16_t next16 = 0;
+                uint16_t prev16 = 0;
+                if (from_user) {
+                    (void) copyin(&insn16, (const void *) user_pc, sizeof(insn16));
+                    (void) copyin(&next16, (const void *) (user_pc + 2u), sizeof(next16));
+                    if (user_pc >= (USER_BASE + 2u)) {
+                        (void) copyin(&prev16, (const void *) (user_pc - 2u), sizeof(prev16));
+                    }
+                }
+
+            PANIC("Illegal Instruction. scause=%x, stval=%x, sepc=%x, from_user=%d, pid=%d, name=%s, prev=%x, insn0=%x, insn1=%x\n",
+                  scause,
+                  stval,
+                  user_pc,
+                  (int) from_user,
+                  current_proc ? current_proc->pid : -1,
+                  current_proc ? current_proc->name : "none",
+                  (unsigned) prev16,
+                  (unsigned) insn16,
+                  (unsigned) next16);
+            }
 
         // breakpoint
         case SCAUSE_BREAKPOINT:
@@ -97,6 +127,10 @@ void handle_trap(struct trap_frame *f) {
             if (scheduler_should_yield()) {
                 yield();
             }
+            // Timer trap can context-switch away and resume this trap frame later.
+            // Restore this frame's resume PC explicitly to avoid returning with
+            // a sepc value clobbered by another trap in between.
+            WRITE_CSR(sepc, user_pc);
             if (current_proc && current_proc->pid > 0) {
                 WRITE_CSR(sscratch, (uint32_t) &current_proc->stack[sizeof(current_proc->stack)]);
             } else if (owner) {

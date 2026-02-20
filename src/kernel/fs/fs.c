@@ -10,7 +10,9 @@ extern void syscall_handle_getchar(struct trap_frame *f);
 
 #define VFS_MOUNT_MAX 4
 #define APPFS_MAGIC 0x41504653u
-#define APPFS_START_BLOCK 192u
+// Keep this in sync with scripts/pack_appfs.py.
+// Must be placed after pfs image area to avoid overwrite on first boot.
+#define APPFS_START_BLOCK 4096u
 #define APPFS_MAX_ENTRIES 32
 #define PFS_MAGIC 0x50465331u
 
@@ -18,6 +20,7 @@ struct pfs_image {
     uint32_t magic;
     struct fs_node nodes[FS_MAX_NODES];
 };
+static struct pfs_image nodefs_boot_img;
 
 struct vfs_fd {
     int used;
@@ -248,8 +251,8 @@ static void nodefs_init_instance(struct nodefs *fs, int persistent) {
     fs->mount_idx = -1;
     fs->persistent = 1;
 
-    struct pfs_image pfs_work_img;
-    struct pfs_image *img = &pfs_work_img;
+    // Do not place this large image on kernel stack.
+    struct pfs_image *img = &nodefs_boot_img;
     uint8_t *dst = (uint8_t *) img;
     uint8_t block[BLOCKDEV_BLOCK_SIZE];
     int blocks = (int) pfs_block_count();
@@ -850,7 +853,7 @@ void fs_init(void) {
     // mount procfs
     // Ensure mountpoint exists in root namespace for `ls /`.
     if (nodefs_resolve_path(&rootfs, "/proc") < 0) {
-        printf("      [fs] create mountpoint: /proc ...");
+        printf("     [fs] create mountpoint: /proc ...");
         (void) nodefs_mkdir(&rootfs, "/proc");
         printf("OK\n");
     }
@@ -864,10 +867,37 @@ void fs_init(void) {
 
     // Ensure /bin mountpoint-like directory exists in root namespace.
     if (nodefs_resolve_path(&rootfs, "/bin") < 0) {
-        printf("      [fs] create mountpoint: /bin ...");
+        printf("     [fs] create mountpoint: /bin ...");
         (void) nodefs_mkdir(&rootfs, "/bin");
         printf("OK\n");
     }
+
+    if (nodefs_resolve_path(&rootfs, "/etc") < 0) {
+        printf("     [fs] create directory: /etc ...");
+        (void) nodefs_mkdir(&rootfs, "/etc");
+        printf("OK\n");
+    }
+    if (nodefs_resolve_path(&rootfs, "/var") < 0) {
+        printf("     [fs] create directory: /var ...");
+        (void) nodefs_mkdir(&rootfs, "/var");
+        printf("OK\n");
+    }
+    if (nodefs_resolve_path(&rootfs, "/var/www") < 0) {
+        printf("     [fs] create directory: /var/www ...");
+        (void) nodefs_mkdir(&rootfs, "/var/www");
+        printf("OK\n");
+    }
+    if (nodefs_resolve_path(&rootfs, "/var/www/html") < 0) {
+        printf("     [fs] create directory: /var/www/html ...");
+        (void) nodefs_mkdir(&rootfs, "/var/www/html");
+        printf("OK\n");
+    }
+    if (nodefs_resolve_path(&rootfs, "/root") < 0) {
+        printf("     [fs] create directory: /root ...");
+        (void) nodefs_mkdir(&rootfs, "/root");
+        printf("OK\n");
+    }
+
 }
 
 int fs_fork_copy_fds(int parent_pid, int child_pid) {
@@ -1075,7 +1105,9 @@ int fs_mkdir(const char *path) {
     if (vfs_resolve_mount(path, &m, &subpath) < 0) {
         return -1;
     }
-
+    if (!m || !m->ops || !m->ops->mkdir) {
+        return -1;
+    }
     return m->ops->mkdir(m->ctx, subpath);
 }
 

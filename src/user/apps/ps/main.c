@@ -47,14 +47,33 @@ static void build_args_string(const struct ps_info *info, char *out, size_t out_
         argc = PROC_EXEC_ARGV_MAX;
     }
 
+    size_t pos = 0;
     for (int i = 0; i < argc; i++) {
-        if (info->argv[i][0] == '\0') {
+        const char *arg = info->argv[i];
+        if (!arg || arg[0] == '\0') {
             continue;
         }
-        if (out[0] != '\0') {
-            strcat_s(out, out_size, " ");
+
+        if (pos > 0) {
+            if (pos + 1 >= out_size) {
+                break;
+            }
+            out[pos++] = ' ';
+            out[pos] = '\0';
         }
-        strcat_s(out, out_size, info->argv[i]);
+
+        for (int j = 0; j < PROC_EXEC_ARG_LEN; j++) {
+            char c = arg[j];
+            if (c == '\0') {
+                break;
+            }
+            if (pos + 1 >= out_size) {
+                out[pos] = '\0';
+                return;
+            }
+            out[pos++] = c;
+            out[pos] = '\0';
+        }
     }
 }
 
@@ -65,9 +84,14 @@ int main(int argc, char **argv) {
     printf("PID\tPPID\tSTATE\tREASON\tEXIT\tCMD\n");
     for (int i = 1; i < PROCS_MAX; i++) {
         struct ps_info info;
+        memset(&info, 0, sizeof(info));
         int ret = ps(i, &info);
         if (ret < 0) {
             continue;
+        }
+        info.name[PROC_NAME_MAX - 1] = '\0';
+        for (int a = 0; a < PROC_EXEC_ARGV_MAX; a++) {
+            info.argv[a][PROC_EXEC_ARG_LEN - 1] = '\0';
         }
         if (info.state == PROC_UNUSED) {
             continue;

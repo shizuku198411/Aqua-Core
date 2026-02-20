@@ -38,6 +38,8 @@
 #define SYSCALL_CONNECT     37
 #define SYSCALL_SEND        38
 #define SYSCALL_RECV        39
+#define SYSCALL_LISTEN      40
+#define SYSCALL_ACCEPT      41
 
 
 void handle_syscall(struct trap_frame *f);

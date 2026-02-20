@@ -41,4 +41,6 @@ int recvfrom(int sockfd, void *buf, int len, struct socket_addr_in *from, uint32
 int connect(int sockfd, const struct socket_addr_in *addr, uint32_t addrlen);
 int send(int sockfd, const void *buf, int len);
 int recv(int sockfd, void *buf, int len);
+int listen(int sockfd, int backlog);
+int accept(int sockfd, struct socket_addr_in *addr, uint32_t *addrlen);
 __attribute__((noreturn)) void exit(int status);

@@ -9,6 +9,7 @@
 #define NET_TCP_FRAME_CAP      1514u
 #define NET_TCP_HDR_LEN        20u
 #define NET_TCP_POLL_LIMIT     2000000u
+#define NET_TCP_ACCEPT_POLL_LIMIT 4096u
 #define NET_TCP_PAYLOAD_MAX    1200u
 #define NET_TCP_PENDING_MAX    4096u
 
@@ -372,6 +373,93 @@ int net_tcp_connect(uint32_t dst_ip, uint16_t src_port, uint16_t dst_port) {
 
     c->state = NET_TCP_ESTABLISHED;
     return id;
+}
+
+int net_tcp_accept(uint16_t local_port, uint32_t *peer_ip_out, uint16_t *peer_port_out) {
+    if (local_port == 0u) {
+        return -1;
+    }
+
+    uint32_t local_ip = net_ipv4_source_addr();
+
+    for (uint32_t spin = 0; spin < NET_TCP_ACCEPT_POLL_LIMIT; spin++) {
+        const uint8_t *frame = NULL;
+        size_t frame_len = 0;
+        int rr = net_rx_try_dequeue(&frame, &frame_len);
+        if (rr < 0) {
+            if (rr != -1) {
+                return -1;
+            }
+            continue;
+        }
+
+        struct net_tcp_segment syn;
+        if (parse_tcp_segment(frame, frame_len, &syn) < 0) {
+            continue;
+        }
+        if (syn.dst_ip != local_ip) {
+            continue;
+        }
+        if (syn.dst_port != local_port) {
+            continue;
+        }
+        if ((syn.flags & TCP_FLAG_SYN) == 0u || (syn.flags & TCP_FLAG_ACK) != 0u) {
+            continue;
+        }
+
+        struct net_tcp_endpoint ep;
+        ep.src_ip = local_ip;
+        ep.dst_ip = syn.src_ip;
+        ep.src_port = local_port;
+        ep.dst_port = syn.src_port;
+
+        int id = net_tcp_alloc(ep);
+        if (id < 0) {
+            return -1;
+        }
+        struct net_tcp_conn *c = &tcp_conns[id];
+        uint32_t iss = tcp_iss_seed;
+        tcp_iss_seed += 0x10001u;
+
+        c->state = NET_TCP_SYN_RECV;
+        c->send_next = iss;
+        c->recv_next = syn.seq + 1u;
+
+        if (tx_tcp_segment(c->ep.src_ip,
+                           c->ep.dst_ip,
+                           c->ep.src_port,
+                           c->ep.dst_port,
+                           c->send_next,
+                           c->recv_next,
+                           TCP_FLAG_SYN | TCP_FLAG_ACK,
+                           NULL,
+                           0) < 0) {
+            c->used = 0;
+            return -1;
+        }
+        c->send_next += 1u;
+
+        struct net_tcp_segment ack;
+        if (poll_matching_segment(c, &ack) < 0) {
+            c->used = 0;
+            return -1;
+        }
+        if ((ack.flags & TCP_FLAG_ACK) == 0u || ack.ack != c->send_next) {
+            c->used = 0;
+            return -1;
+        }
+
+        c->state = NET_TCP_ESTABLISHED;
+        if (peer_ip_out) {
+            *peer_ip_out = c->ep.dst_ip;
+        }
+        if (peer_port_out) {
+            *peer_port_out = c->ep.dst_port;
+        }
+        return id;
+    }
+
+    return -1;
 }
 
 int net_tcp_send(int id, const void *buf, size_t len) {

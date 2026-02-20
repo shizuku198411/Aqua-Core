@@ -1,5 +1,6 @@
 #include "net/net.h"
 #include "net/tcp.h"
+#include "net/arp.h"
 #include "kernel/virtio.h"
 #include "core/stdtypes.h"
 #include "core/commonlibs.h"
@@ -348,6 +349,7 @@ int net_rx_try_dequeue(const uint8_t **frame_out, size_t *len_out) {
             frame_len = NET_RX_MAX_FRAME;
         }
         memcpy(net_rx_frame_shadow, net_rx_slot[desc_id].frame, frame_len);
+        (void) net_arp_try_reply(net_rx_frame_shadow, frame_len);
     }
     net_rx_frame_shadow_len = frame_len;
     *frame_out = net_rx_frame_shadow;
