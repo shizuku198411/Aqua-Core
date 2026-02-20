@@ -27,7 +27,8 @@ APPS = [
     "ping",
     "udp_send",
     "nslookup",
-    "echo"
+    "echo",
+    "edit",
 ]
 
 

@@ -106,6 +106,10 @@ NSLOOKUP_OBJ := $(OBJ_DIR)/nslookup.bin.o
 ECHO_ELF := $(BIN_DIR)/echo.elf
 ECHO_BIN := $(BIN_DIR)/echo.bin
 ECHO_OBJ := $(OBJ_DIR)/echo.bin.o
+# edit
+EDIT_ELF := $(BIN_DIR)/edit.elf
+EDIT_BIN := $(BIN_DIR)/edit.bin
+EDIT_OBJ := $(OBJ_DIR)/edit.bin.o
 
 # test
 TEST_BIN_DIR := $(BIN_DIR)/tests
@@ -363,11 +367,22 @@ $(ECHO_BIN): $(ECHO_ELF)
 $(ECHO_OBJ): $(ECHO_BIN)
 	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(ECHO_BIN) $@
 
+# edit
+$(EDIT_ELF): dirs
+	$(CC) $(CFLAGS) -Wl,-T$(USER_SRC_DIR)/user.ld -Wl,-Map=$(MAP_DIR)/edit.map -o $@ \
+		$(USER_RUNTIME_DIR)/*.c $(USER_APPS_DIR)/edit/*.c $(LIB_SRC_DIR)/commonlibs.c
+
+$(EDIT_BIN): $(EDIT_ELF)
+	$(OBJCOPY) --set-section-flags .bss=alloc,contents -O binary $< $@
+
+$(EDIT_OBJ): $(EDIT_BIN)
+	$(OBJCOPY) -Ibinary -Oelf32-littleriscv ./$(EDIT_BIN) $@
+
 
 $(KERNEL_ELF): $(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 	$(MKDIR_OBJ) $(RMDIR_OBJ) $(TOUCH_OBJ) $(RM_OBJ) $(WRITE_OBJ) $(CAT_OBJ) \
 	$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ) $(PING_OBJ) $(UDP_SEND_OBJ) $(NSLOOKUP_OBJ) \
-	$(ECHO_OBJ)
+	$(ECHO_OBJ) $(EDIT_OBJ)
 	$(CC) $(CFLAGS) -Wl,-T$(KERNEL_SRC_DIR)/kernel.ld -Wl,-Map=$(MAP_DIR)/kernel.map -o $@ \
 		$(LIB_SRC_DIR)/commonlibs.c \
 		$(KERNEL_SRC_DIR)/kernel.c \
@@ -382,7 +397,7 @@ $(KERNEL_ELF): $(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 			$(SHELL_OBJ) $(IPC_RX_OBJ) $(PS_OBJ) $(DATE_OBJ) $(LS_OBJ) \
 			$(MKDIR_OBJ) $(RMDIR_OBJ) $(TOUCH_OBJ) $(RM_OBJ) $(WRITE_OBJ) $(CAT_OBJ) \
 			$(KILL_OBJ) $(KERNEL_INFO_OBJ) $(BITMAP_OBJ) $(PING_OBJ) $(UDP_SEND_OBJ) $(NSLOOKUP_OBJ) \
-			$(ECHO_OBJ)
+			$(ECHO_OBJ) $(EDIT_OBJ)
 
 disk: dirs
 	@if [ ! -f "$(DISK_IMG)" ]; then \
@@ -547,7 +562,8 @@ clean:
 		$(PING_ELF) $(PING_BIN) $(PING_OBJ) \
 		$(UDP_SEND_ELF) $(UDP_SEND_BIN) $(UDP_SEND_OBJ) \
 		$(NSLOOKUP_ELF) $(NSLOOKUP_BIN) $(NSLOOKUP_OBJ) \
-		$(ECHO_ELF) $(ECHO_BIN) $(ECHO_OBJ)
+		$(ECHO_ELF) $(ECHO_BIN) $(ECHO_OBJ) \
+		$(EDIT_ELF) $(EDIT_BIN) $(EDIT_OBJ)
 	rm -f $(MAP_DIR)/*.map
 
 distclean: clean
