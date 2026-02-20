@@ -31,6 +31,10 @@
 #define SYSCALL_SLEEP       30
 #define SYSCALL_EXEC_PATH   31
 #define SYSCALL_EXECV_PATH  32
+#define SYSCALL_SOCKET      33
+#define SYSCALL_SENDTO      34
+#define SYSCALL_RECVFROM    35
+#define SYSCALL_BIND        36
 
 
 void handle_syscall(struct trap_frame *f);

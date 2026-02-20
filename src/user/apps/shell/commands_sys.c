@@ -175,6 +175,216 @@ int shell_cmd_net_recv_raw(int max_bytes) {
     return 0;
 }
 
+static int sockudp_parse_octet(const char *s, int *consumed, uint32_t *out) {
+    if (!s || !consumed || !out) {
+        return -1;
+    }
+    if (s[0] < '0' || s[0] > '9') {
+        return -1;
+    }
+
+    uint32_t v = 0;
+    int i = 0;
+    while (s[i] >= '0' && s[i] <= '9') {
+        v = v * 10u + (uint32_t) (s[i] - '0');
+        if (v > 255u) {
+            return -1;
+        }
+        i++;
+    }
+    *consumed = i;
+    *out = v;
+    return 0;
+}
+
+static int sockudp_parse_ipv4(const char *s, uint32_t *out_ip) {
+    if (!s || !out_ip) {
+        return -1;
+    }
+
+    uint32_t b[4] = {0, 0, 0, 0};
+    int pos = 0;
+    for (int i = 0; i < 4; i++) {
+        int n = 0;
+        if (sockudp_parse_octet(&s[pos], &n, &b[i]) < 0) {
+            return -1;
+        }
+        pos += n;
+        if (i < 3) {
+            if (s[pos] != '.') {
+                return -1;
+            }
+            pos++;
+        }
+    }
+    if (s[pos] != '\0') {
+        return -1;
+    }
+
+    *out_ip = (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
+    return 0;
+}
+
+static int sockudp_parse_u16(const char *s, uint16_t *out) {
+    if (!s || !out || *s == '\0') {
+        return -1;
+    }
+    uint32_t v = 0;
+    for (int i = 0; s[i] != '\0'; i++) {
+        if (s[i] < '0' || s[i] > '9') {
+            return -1;
+        }
+        v = v * 10u + (uint32_t) (s[i] - '0');
+        if (v > 65535u) {
+            return -1;
+        }
+    }
+    *out = (uint16_t) v;
+    return 0;
+}
+
+static uint16_t sockudp_host_to_be16(uint16_t v) {
+    return (uint16_t) ((v << 8) | (v >> 8));
+}
+
+static uint16_t sockudp_be16_to_host(uint16_t v) {
+    return sockudp_host_to_be16(v);
+}
+
+int shell_cmd_sockudp(int argc, char **argv) {
+    if (!argv || argc < 2) {
+        printf("usage:\n");
+        printf("  sockudp send <ipv4> <sport> <dport> <payload>\n");
+        printf("  sockudp recv <port> [max_bytes]\n");
+        return -1;
+    }
+
+    if (strcmp(argv[1], "send") == 0) {
+        if (argc != 6) {
+            printf("usage: sockudp send <ipv4> <sport> <dport> <payload>\n");
+            return -1;
+        }
+
+        uint32_t dst_ip = 0;
+        uint16_t sport = 0;
+        uint16_t dport = 0;
+        const char *payload = argv[5];
+        int payload_len = str_len(payload);
+
+        if (sockudp_parse_ipv4(argv[2], &dst_ip) < 0) {
+            printf("invalid ipv4: %s\n", argv[2]);
+            return -1;
+        }
+        if (sockudp_parse_u16(argv[3], &sport) < 0 || sockudp_parse_u16(argv[4], &dport) < 0) {
+            printf("invalid port\n");
+            return -1;
+        }
+
+        int s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if (s < 0) {
+            printf("socket failed\n");
+            return -1;
+        }
+
+        struct socket_addr_in local;
+        local.sin_family = AF_INET;
+        local.sin_port = sockudp_host_to_be16(sport);
+        local.sin_addr = 0;
+        if (bind(s, &local, sizeof(local)) < 0) {
+            printf("bind failed\n");
+            fs_close(s);
+            return -1;
+        }
+
+        struct socket_addr_in to;
+        to.sin_family = AF_INET;
+        to.sin_port = sockudp_host_to_be16(dport);
+        to.sin_addr = dst_ip;
+
+        int ret = sendto(s, payload, payload_len, &to, sizeof(to));
+        fs_close(s);
+        if (ret < 0) {
+            printf("sockudp send failed (%d)\n", ret);
+            return -1;
+        }
+
+        printf("sockudp sent %d bytes to %s:%d (sport=%d)\n", ret, argv[2], (int) dport, (int) sport);
+        return 0;
+    }
+
+    if (strcmp(argv[1], "recv") == 0) {
+        if (argc != 3 && argc != 4) {
+            printf("usage: sockudp recv <port> [max_bytes]\n");
+            return -1;
+        }
+
+        uint16_t port = 0;
+        if (sockudp_parse_u16(argv[2], &port) < 0) {
+            printf("invalid port\n");
+            return -1;
+        }
+
+        int cap = 256;
+        if (argc == 4) {
+            if (parse_int(argv[3], &cap) < 0 || cap <= 0 || cap > 1400) {
+                printf("invalid max_bytes (1..1400)\n");
+                return -1;
+            }
+        }
+
+        uint8_t buf[1400];
+        int s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if (s < 0) {
+            printf("socket failed\n");
+            return -1;
+        }
+
+        struct socket_addr_in local;
+        local.sin_family = AF_INET;
+        local.sin_port = sockudp_host_to_be16(port);
+        local.sin_addr = 0;
+        if (bind(s, &local, sizeof(local)) < 0) {
+            printf("bind failed\n");
+            fs_close(s);
+            return -1;
+        }
+
+        struct socket_addr_in from;
+        uint32_t fromlen = sizeof(from);
+        int n = recvfrom(s, buf, cap, &from, &fromlen);
+        fs_close(s);
+        if (n < 0) {
+            printf("sockudp recv failed (%d)\n", n);
+            return -1;
+        }
+
+        uint32_t ip = from.sin_addr;
+        uint16_t src_port = sockudp_be16_to_host(from.sin_port);
+        printf("sockudp recv %d bytes from %d.%d.%d.%d:%d\n",
+               n,
+               (int) ((ip >> 24) & 0xffu),
+               (int) ((ip >> 16) & 0xffu),
+               (int) ((ip >> 8) & 0xffu),
+               (int) (ip & 0xffu),
+               (int) src_port);
+
+        for (int i = 0; i < n; i++) {
+            char c = (char) buf[i];
+            if (c < 0x20 || c > 0x7e) {
+                c = '.';
+            }
+            putchar(c);
+        }
+        putchar('\n');
+        return 0;
+    }
+
+    printf("usage:\n");
+    printf("  sockudp send <ipv4> <sport> <dport> <payload>\n");
+    printf("  sockudp recv <port> [max_bytes]\n");
+    return -1;
+}
+
 __attribute__((noreturn))
 void shell_cmd_exit(void) {
     exit(0);

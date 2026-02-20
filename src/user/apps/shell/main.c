@@ -9,7 +9,7 @@
 #include "user/syscall.h"
 #include "fs/fs.h"
 
-#define NUM_BUILTIN_CMD 6
+#define NUM_BUILTIN_CMD 7
 // shell built-in command
 const char builtin_cmd[NUM_BUILTIN_CMD][FS_NAME_MAX] = {
     "history",
@@ -17,6 +17,7 @@ const char builtin_cmd[NUM_BUILTIN_CMD][FS_NAME_MAX] = {
     "cd",
     "net_send_raw",
     "net_recv_raw",
+    "sockudp",
     "exit"
 };
 
@@ -164,7 +165,11 @@ prompt:
         int draft_len = 0;
         int history_cursor = -1; // -1: not browsing, 0..history_size()-1: browsing
         for (;;) {
-            char ch = getchar();
+            long ch_raw = getchar();
+            if (ch_raw < 0) {
+                continue;
+            }
+            uint8_t ch = (uint8_t) ch_raw;
 
             if (ch == '\r' || ch == '\n') {
                 printf("\n");
@@ -175,8 +180,13 @@ prompt:
             // Arrow keys: ESC [ A(up), ESC [ B(down), ESC [ C(right), ESC [ D(left)
             // Delete key: ESC [ 3 ~
             if (ch == 0x1b) {
-                char c1 = getchar();
-                char c2 = getchar();
+                long c1_raw = getchar();
+                long c2_raw = getchar();
+                if (c1_raw < 0 || c2_raw < 0) {
+                    continue;
+                }
+                uint8_t c1 = (uint8_t) c1_raw;
+                uint8_t c2 = (uint8_t) c2_raw;
                 if (c1 == '[' && (c2 == 'A' || c2 == 'B' || c2 == 'C' || c2 == 'D' || c2 == '3')) {
                     int hsize = history_size();
 
@@ -193,7 +203,11 @@ prompt:
                         }
                         continue;
                     } else if (c2 == '3') { // delete
-                        char c3 = getchar();
+                        long c3_raw = getchar();
+                        if (c3_raw < 0) {
+                            continue;
+                        }
+                        uint8_t c3 = (uint8_t) c3_raw;
                         if (c3 == '~' && cursor < len) {
                             for (int i = cursor; i < len - 1; i++) {
                                 cmdline[i] = cmdline[i + 1];
@@ -276,6 +290,11 @@ prompt:
             if (len == sizeof(cmdline) - 1) {
                 printf("\ncommand too long\n");
                 goto prompt;
+            }
+
+            // Accept only visible ASCII into command buffer.
+            if (ch < 0x20 || ch > 0x7e) {
+                continue;
             }
 
             if (cursor == len) {
@@ -388,6 +407,12 @@ prompt:
             }
             if (shell_cmd_net_recv_raw(max_bytes) < 0) {
                 printf("net_recv_raw failed\n");
+            }
+        }
+
+        else if (strcmp(argv[0], "sockudp") == 0) {
+            if (shell_cmd_sockudp(argc, argv) < 0) {
+                printf("sockudp failed\n");
             }
         }
 

@@ -30,3 +30,8 @@ void syscall_handle_getcwd(struct trap_frame *f);
 void syscall_handle_chdir(struct trap_frame *f);
 void syscall_handle_ping_tx(struct trap_frame *f);
 void syscall_handle_sleep(struct trap_frame *f);
+void syscall_handle_socket(struct trap_frame *f);
+void syscall_handle_sendto(struct trap_frame *f);
+void syscall_handle_recvfrom(struct trap_frame *f);
+void syscall_handle_bind(struct trap_frame *f);
+int syscall_net_close_socket_fd(int sockfd);

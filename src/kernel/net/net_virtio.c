@@ -1,4 +1,5 @@
 #include "net/net.h"
+#include "net/tcp.h"
 #include "kernel/virtio.h"
 #include "core/stdtypes.h"
 #include "core/commonlibs.h"
@@ -246,6 +247,7 @@ int net_init(void) {
 
     read_mac_addr();
     rxq_refill_all();
+    net_tcp_init();
     net_ready = 1;
     printf("     [net] virtio-net init OK:\n           mac=%x:%x:%x:%x:%x:%x\n",
            (unsigned) net_mac[0],

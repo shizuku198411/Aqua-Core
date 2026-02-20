@@ -154,6 +154,22 @@ def run_tests(h: Harness):
     run_cmd_case("exit_status_nonzero", "date --fail", [b"date: forced failure", b"exit status: 42"])
     run_cmd_case("echo_app", "echo hello", [b"hello"])
 
+    def case_pid_wrap_stress():
+        # Regression test:
+        # Run enough short-lived processes to ensure PID grows beyond PROCS_MAX(64),
+        # while shell remains responsive and no input corruption/panic occurs.
+        loops = 120
+        for i in range(loops):
+            start = h.mark()
+            h.send_line("date")
+            h.wait_for(b"UTC", 10, start=start)
+            h.wait_for(b"$ ", 10, start=start)
+            text = h.text_from(start)
+            if "PANIC" in text or "command too long" in text:
+                raise AssertionError(f"detected corruption at iteration {i}")
+
+    run_case("pid_over_procsmax_stress", case_pid_wrap_stress)
+
     def case_kernel_info():
         # Validate that exported kernel parameters are present and populated.
         start = h.mark()

@@ -786,6 +786,10 @@ static int vfs_alloc_fd(int pid, int mount_idx, int node_index, uint32_t offset,
     return -1;
 }
 
+static int fs_proc_index_from_pid(int pid) {
+    return process_slot_index_by_pid(pid);
+}
+
 void fs_init(void) {
     printf("\n");
     printf("     [fs] reset fd/mount tables...");
@@ -867,15 +871,17 @@ void fs_init(void) {
 }
 
 int fs_fork_copy_fds(int parent_pid, int child_pid) {
-    if (parent_pid < 0 || parent_pid >= PROCS_MAX) {
+    int parent_idx = fs_proc_index_from_pid(parent_pid);
+    if (parent_idx < 0) {
         return -1;
     }
-    if (child_pid < 0 || child_pid >= PROCS_MAX) {
+    int child_idx = fs_proc_index_from_pid(child_pid);
+    if (child_idx < 0) {
         return -1;
     }
 
     for (int fd = 0; fd < FS_FD_MAX; fd++) {
-        fd_table[child_pid][fd] = fd_table[parent_pid][fd];
+        fd_table[child_idx][fd] = fd_table[parent_idx][fd];
     }
     return 0;
 }
@@ -883,8 +889,9 @@ int fs_fork_copy_fds(int parent_pid, int child_pid) {
 int fs_open(int pid, const char *path, int flags) {
     struct vfs_mount *m = NULL;
     const char *subpath = NULL;
+    int proc_idx = fs_proc_index_from_pid(pid);
 
-    if (pid < 0 || pid >= PROCS_MAX || !path) {
+    if (proc_idx < 0 || !path) {
         return -1;
     }
 
@@ -893,27 +900,27 @@ int fs_open(int pid, const char *path, int flags) {
     }
 
     if (strcmp(path, "/dev/console") == 0) {
-        int fd = vfs_alloc_fd(pid, -1, -1, 0, flags);
+        int fd = vfs_alloc_fd(proc_idx, -1, -1, 0, flags);
         if (fd >= 0) {
-            fd_table[pid][fd].backend_type = FD_BACKEND_CONSOLE;
+            fd_table[proc_idx][fd].backend_type = FD_BACKEND_CONSOLE;
         }
         return fd;
     }
     if (strcmp(path, "/dev/net0") == 0) {
-        int fd = vfs_alloc_fd(pid, -1, -1, 0, flags);
+        int fd = vfs_alloc_fd(proc_idx, -1, -1, 0, flags);
         if (fd >= 0) {
-            fd_table[pid][fd].backend_type = FD_BACKEND_NET;
+            fd_table[proc_idx][fd].backend_type = FD_BACKEND_NET;
         }
         return fd;
     }
 
     int app_idx = -1;
     if (resolve_appfs_path(path, &app_idx) == 0) {
-        int fd = vfs_alloc_fd(pid, -1, app_idx, 0, O_RDONLY);
+        int fd = vfs_alloc_fd(proc_idx, -1, app_idx, 0, O_RDONLY);
         if (fd >= 0) {
-            fd_table[pid][fd].backend_type = FD_BACKEND_APPIMG;
-            fd_table[pid][fd].app_image_offset = appfs_entries[app_idx].data_off;
-            fd_table[pid][fd].app_image_size = appfs_entries[app_idx].size;
+            fd_table[proc_idx][fd].backend_type = FD_BACKEND_APPIMG;
+            fd_table[proc_idx][fd].app_image_offset = appfs_entries[app_idx].data_off;
+            fd_table[proc_idx][fd].app_image_size = appfs_entries[app_idx].size;
         }
         return fd;
     }
@@ -928,18 +935,19 @@ int fs_open(int pid, const char *path, int flags) {
         return -1;
     }
 
-    return vfs_alloc_fd(pid, (int) (m - mounts), node, offset, flags);
+    return vfs_alloc_fd(proc_idx, (int) (m - mounts), node, offset, flags);
 }
 
 int fs_close(int pid, int fd) {
-    if (pid < 0 || pid >= PROCS_MAX) {
+    int proc_idx = fs_proc_index_from_pid(pid);
+    if (proc_idx < 0) {
         return -1;
     }
-    if (fd < 0 || fd >= FS_FD_MAX || !fd_table[pid][fd].used) {
+    if (fd < 0 || fd >= FS_FD_MAX || !fd_table[proc_idx][fd].used) {
         return -1;
     }
 
-    struct vfs_fd *f = &fd_table[pid][fd];
+    struct vfs_fd *f = &fd_table[proc_idx][fd];
     if (f->backend_type == FD_BACKEND_VFS &&
         f->dirty &&
         f->mount_idx >= 0 &&
@@ -951,30 +959,31 @@ int fs_close(int pid, int fd) {
         }
     }
 
-    fd_table[pid][fd].used = 0;
-    fd_table[pid][fd].mount_idx = -1;
-    fd_table[pid][fd].node_index = -1;
-    fd_table[pid][fd].offset = 0;
-    fd_table[pid][fd].flags = 0;
-    fd_table[pid][fd].backend_type = FD_BACKEND_VFS;
-    fd_table[pid][fd].dirty = 0;
-    fd_table[pid][fd].app_image_offset = 0;
-    fd_table[pid][fd].app_image_size = 0;
+    fd_table[proc_idx][fd].used = 0;
+    fd_table[proc_idx][fd].mount_idx = -1;
+    fd_table[proc_idx][fd].node_index = -1;
+    fd_table[proc_idx][fd].offset = 0;
+    fd_table[proc_idx][fd].flags = 0;
+    fd_table[proc_idx][fd].backend_type = FD_BACKEND_VFS;
+    fd_table[proc_idx][fd].dirty = 0;
+    fd_table[proc_idx][fd].app_image_offset = 0;
+    fd_table[proc_idx][fd].app_image_size = 0;
     return 0;
 }
 
 int fs_read(int pid, int fd, void *buf, size_t size) {
-    if (pid < 0 || pid >= PROCS_MAX || !buf) {
+    int proc_idx = fs_proc_index_from_pid(pid);
+    if (proc_idx < 0 || !buf) {
         return -1;
     }
     if (fd < 0 || fd >= FS_FD_MAX) {
         return -1;
     }
-    if (!fd_table[pid][fd].used) {
+    if (!fd_table[proc_idx][fd].used) {
         return (fd == 0) ? console_read_fallback(buf, size) : -1;
     }
 
-    struct vfs_fd *f = &fd_table[pid][fd];
+    struct vfs_fd *f = &fd_table[proc_idx][fd];
     if ((f->flags & O_RDONLY) == 0 && (f->flags & O_RDWR) == 0) {
         return -1;
     }
@@ -1012,17 +1021,18 @@ int fs_read(int pid, int fd, void *buf, size_t size) {
 }
 
 int fs_write(int pid, int fd, const void *buf, size_t size) {
-    if (pid < 0 || pid >= PROCS_MAX || !buf) {
+    int proc_idx = fs_proc_index_from_pid(pid);
+    if (proc_idx < 0 || !buf) {
         return -1;
     }
     if (fd < 0 || fd >= FS_FD_MAX) {
         return -1;
     }
-    if (!fd_table[pid][fd].used) {
+    if (!fd_table[proc_idx][fd].used) {
         return (fd == 1) ? console_write_fallback(buf, size) : -1;
     }
 
-    struct vfs_fd *f = &fd_table[pid][fd];
+    struct vfs_fd *f = &fd_table[proc_idx][fd];
     if ((f->flags & O_WRONLY) == 0 && (f->flags & O_RDWR) == 0) {
         return -1;
     }
@@ -1126,70 +1136,73 @@ int fs_rmdir(const char *path) {
 }
 
 int fs_dup2(int pid, int old_fd, int new_fd) {
-    if (pid < 0 || pid >= PROCS_MAX) return -1;
-    if ((old_fd < 0 || old_fd >= FS_FD_MAX) || !fd_table[pid][old_fd].used) return -1;
+    int proc_idx = fs_proc_index_from_pid(pid);
+    if (proc_idx < 0) return -1;
+    if ((old_fd < 0 || old_fd >= FS_FD_MAX) || !fd_table[proc_idx][old_fd].used) return -1;
     if (new_fd < 0 || new_fd >= FS_FD_MAX) return -1;
 
     if (old_fd == new_fd) return new_fd;
 
     // close if new fd is already used
-    if (fd_table[pid][new_fd].used) {
+    if (fd_table[proc_idx][new_fd].used) {
         if (fs_close(pid, new_fd) < 0) {
             return -1;
         }
     }
     // copy old_fd to new_fd
-    fd_table[pid][new_fd] = fd_table[pid][old_fd];
-    fd_table[pid][new_fd].used = 1;
+    fd_table[proc_idx][new_fd] = fd_table[proc_idx][old_fd];
+    fd_table[proc_idx][new_fd].used = 1;
     return new_fd;
 }
 
 void fs_on_process_recycle(int pid) {
-    if (pid < 0 || pid >= PROCS_MAX) {
+    int proc_idx = fs_proc_index_from_pid(pid);
+    if (proc_idx < 0) {
         return;
     }
 
     for (int fd = 0; fd < FS_FD_MAX; fd++) {
-        fd_table[pid][fd].used = 0;
-        fd_table[pid][fd].mount_idx = -1;
-        fd_table[pid][fd].node_index = -1;
-        fd_table[pid][fd].offset = 0;
-        fd_table[pid][fd].flags = 0;
-        fd_table[pid][fd].backend_type = FD_BACKEND_VFS;
-        fd_table[pid][fd].dirty = 0;
-        fd_table[pid][fd].app_image_offset = 0;
-        fd_table[pid][fd].app_image_size = 0;
+        fd_table[proc_idx][fd].used = 0;
+        fd_table[proc_idx][fd].mount_idx = -1;
+        fd_table[proc_idx][fd].node_index = -1;
+        fd_table[proc_idx][fd].offset = 0;
+        fd_table[proc_idx][fd].flags = 0;
+        fd_table[proc_idx][fd].backend_type = FD_BACKEND_VFS;
+        fd_table[proc_idx][fd].dirty = 0;
+        fd_table[proc_idx][fd].app_image_offset = 0;
+        fd_table[proc_idx][fd].app_image_size = 0;
     }
 }
 
 void fs_init_process_stdio(int pid) {
-    if (pid < 0 || pid >= PROCS_MAX) {
+    int proc_idx = fs_proc_index_from_pid(pid);
+    if (proc_idx < 0) {
         return;
     }
 
     for (int fd = 0; fd < FS_FD_MAX; fd++) {
-        fd_table[pid][fd].used = 0;
-        fd_table[pid][fd].mount_idx = -1;
-        fd_table[pid][fd].node_index = -1;
-        fd_table[pid][fd].offset = 0;
-        fd_table[pid][fd].flags = 0;
-        fd_table[pid][fd].backend_type = FD_BACKEND_VFS;
-        fd_table[pid][fd].dirty = 0;
-        fd_table[pid][fd].app_image_offset = 0;
-        fd_table[pid][fd].app_image_size = 0;
+        fd_table[proc_idx][fd].used = 0;
+        fd_table[proc_idx][fd].mount_idx = -1;
+        fd_table[proc_idx][fd].node_index = -1;
+        fd_table[proc_idx][fd].offset = 0;
+        fd_table[proc_idx][fd].flags = 0;
+        fd_table[proc_idx][fd].backend_type = FD_BACKEND_VFS;
+        fd_table[proc_idx][fd].dirty = 0;
+        fd_table[proc_idx][fd].app_image_offset = 0;
+        fd_table[proc_idx][fd].app_image_size = 0;
     }
 
-    fd_table[pid][0].used = 1;
-    fd_table[pid][0].flags = O_RDONLY;
-    fd_table[pid][0].backend_type = FD_BACKEND_CONSOLE;
+    fd_table[proc_idx][0].used = 1;
+    fd_table[proc_idx][0].flags = O_RDONLY;
+    fd_table[proc_idx][0].backend_type = FD_BACKEND_CONSOLE;
 
-    fd_table[pid][1].used = 1;
-    fd_table[pid][1].flags = O_WRONLY;
-    fd_table[pid][1].backend_type = FD_BACKEND_CONSOLE;
+    fd_table[proc_idx][1].used = 1;
+    fd_table[proc_idx][1].flags = O_WRONLY;
+    fd_table[proc_idx][1].backend_type = FD_BACKEND_CONSOLE;
 
-    fd_table[pid][2].used = 1;
-    fd_table[pid][2].flags = O_WRONLY;
-    fd_table[pid][2].backend_type = FD_BACKEND_CONSOLE;
+    fd_table[proc_idx][2].used = 1;
+    fd_table[proc_idx][2].flags = O_WRONLY;
+    fd_table[proc_idx][2].backend_type = FD_BACKEND_CONSOLE;
 }
 
 int fs_get_root_entry(int *mount_idx, int *node_idx) {
