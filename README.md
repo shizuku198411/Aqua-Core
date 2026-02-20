@@ -5,26 +5,56 @@
 </p>
 
 AquaCore は、RISC-V 32bit (`qemu-system-riscv32`) 上で動作するマイクロカーネルです。  
-現在の実装は、プロセス/トラップ/システムコール/ファイルシステム/ネットワーク/ユーザアプリ実行までを一通り含みます。
+現在の実装は、プロセス/トラップ/システムコール/VFS/ネットワーク/ユーザアプリ実行までを含みます。
 
-## 実装機能（現行）
+## 実装機能
+
+### カーネルコア機能
 
 - ブート/トラップ
-- タイマ割り込みとプリエンプティブなスケジューリング
-- プロセス管理（`fork` / `exec_path` / `execv_path` / `exit` / `waitpid` / `kill`）
+- タイマ割り込みとプリエンプティブスケジューリング
+- プロセス管理（`fork` / `exec_path` / `execv_path` / `exit(status)` / `waitpid(status回収)` / `kill`）
 - ユーザメモリアクセス保護（`copyin` / `copyout` / `copyinstr` と `SSTATUS_SUM` ラップ）
-- VFS
-- 永続FS: `pfs`（virtio-blk上、dirty block同期）
-- 揮発FS: `ramfs` (`/tmp`)
-- `procfs` (`/proc/<pid>/status`)
+- VFS 層
+- 永続 FS: `pfs`（virtio-blk 上、dirty block 同期）
+- 揮発 FS: `ramfs` (`/tmp`)
+- `procfs` (`/proc/<pid>/status` の動的生成)
 - AppFS（`/bin/*` 実行イメージをディスクからロード）
-- ネットワーク（virtio-net、`/dev/net0`、ping/UDP送信）
-- RTC時刻取得
+- ソケット API（`socket` / `bind` / `sendto` / `recvfrom` / `connect` / `listen` / `accept`）
+- ネットワーク（virtio-net、ICMP ping、UDP、TCP）
+- RTC 時刻取得
+- 組み込み HTTP サーバ（静的ファイル配信、`index.html`/`manual.html` 自動生成）
 
-## 同梱ユーザアプリ
+### ユーザアプリ
 
-- `shell`, `ps`, `date`, `ls`, `mkdir`, `rmdir`, `touch`, `rm`, `write`, `cat`
-- `kill`, `kernel_info`, `bitmap`, `ipc_rx`, `ping`, `udp_send`, `nslookup`, `echo`
+- `shell`
+  <p>
+    <img src="docs/assets/aquacore_shell.png" width="200">
+  </p>
+- `ipc_rx`
+- `ps`
+- `date`
+- `ls`
+- `mkdir`
+- `rmdir`
+- `touch`
+- `rm`
+- `write`
+- `cat`
+- `kill`
+- `kernel_info`
+- `bitmap`
+- `ping`
+- `udp_send`
+- `nslookup`
+- `echo`
+- `edit`
+- `curl`
+- `http_server`  
+
+  <p>
+    <img src="docs/assets/aquacore_http-server.png" width="500">
+  </p>
 
 ## リポジトリ構成（主要）
 
@@ -62,7 +92,7 @@ make build
 
 ## 実行
 
-### 1. 通常実行（TAPネットワーク）
+### 1. 通常実行（TAP ネットワーク）
 
 ```bash
 make run
@@ -74,11 +104,14 @@ make run
 make run-usernet
 ```
 
-### 3. GDB待ち受けで起動
+### 3. GDB 待ち受けで起動
 
 ```bash
 make qemu-debug
 ```
+
+- `make run` は `kernel.elf` と `disk.img` を必要に応じて更新して起動します。
+- `make start` は `disk` を準備して起動します。`kernel.elf` が無い完全初回のみ自動ビルドが走ります。
 
 ## テスト
 
@@ -109,10 +142,15 @@ make test
 
 - `make build` カーネルとユーザアプリをビルド
 - `make disk` `bin/disk.img` を作成し appfs をパック
-- `make run` QEMU実行（TAP）
-- `make start` `run` と同等（既存運用向けエイリアス）
-- `make run-usernet` usernetでQEMU実行
-- `make qemu-debug` GDB待ち受け付き起動
+- `make run` QEMU 実行（TAP、`kernel` + `disk` 依存）
+- `make start` QEMU 実行（`disk` 依存）
+- `make run-usernet` usernet で QEMU 実行
+- `make start-usernet` usernet で QEMU 実行（`disk` 依存）
+- `make qemu-debug` GDB 待ち受け付き起動
+- `make qemu-debug-usernet` usernet + GDB 待ち受け
+- `make run-tap` / `make start-tap` TAP 明示実行
+- `make qemu-debug-tap` TAP + GDB 待ち受け
+- `make run-tap-dump` TAP パケットダンプ取得
 - `make test-unit` unit test実行
 - `make test-int` integration test実行
 - `make test` 全テスト実行
@@ -130,6 +168,11 @@ make test
 - `TAP_ADDR`（default: `10.0.2.1/24`）
 - `TAP_CIDR`（default: `10.0.2.0/24`）
 - `WAN_DEV`（default: `wlan0`）
+- `PORTFWD_HOST_PORT`（default: `18880`）
+- `PORTFWD_GUEST_IP`（default: `10.0.2.15`）
+- `PORTFWD_GUEST_PORT`（default: `8080`）
+
+`NET_BACKEND=user` で `make run`/`make start` を使う場合は、`QEMU_HOSTFWD` で QEMU usernet 側のポート転送も設定できます。
 
 ## 関連ドキュメント
 
